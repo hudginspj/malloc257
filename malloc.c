@@ -17,33 +17,25 @@
 #include "malloc.h"
 // Don't include stdlb since the names will conflict?
 
-// TODO: align
 
-// sbrk some extra space every time we need it.
-// This does no bookkeeping and therefore has no ability to free, realloc, etc.
-
-/*struct block_meta {
-  size_t size;
-  struct block_meta *next;
-  int free;
-  int magic;    // For debugging only. TODO: remove this in non-debug mode.
-};*/
-
-//#define META_SIZE sizeof(struct block_meta)
-#define ALIGNMENT 8
 
 void *global_base = NULL;
 
+//TODO: clean
 size_t align(size_t ptr_value) {
-    int remainder = ptr_value % ALIGNMENT;
+    int remainder = ptr_value % WORD_SIZE;
     if (remainder) {
-        ptr_value += ALIGNMENT - remainder;
+        ptr_value += WORD_SIZE - remainder;
     }
     return ptr_value;
 }
 
+wordcount size_to_words(size_t size) {
+  return ((size-1)>>3)+1;
+}
 
-struct block_meta *find_previous(struct block_meta *current) {
+
+/*struct block_meta *find_previous(struct block_meta *current) {
   if (current == global_base) {
     return NULL;
   }
@@ -89,88 +81,95 @@ int split(struct block_meta *old_block, size_t size) {
     old_block->magic = 22;
     merge_with_next(new_block);
     return(0);
-}
+}*/
 
 // Iterate through blocks until we find one that's large enough.
 // TODO: split block up if it's larger than necessary
-struct block_meta *find_free_block(struct block_meta **last, size_t size) {
-  struct block_meta *current = global_base;
-  struct block_meta *best;
-  while (current 
+block_meta *find_free_block(wordcount size) {
+  block_meta *current = global_base;
+  block_meta *best;
+  while (current->notlast 
       && !(current->free 
-      && current->size >= size)) {
-    *last = current;
-    current = current->next;
+      && current->words >= size)) { 
+    current += current->words;
   }
-  if (!current) return NULL;
-  best = current;
-  while (current) {
-    if (current->free 
-      && current->size >= size 
-      && (current->size < best->size)) {
-        best = current;
-        if (best->size = size) break;
-    }
-    current = current->next;
+  if (!current->notlast) {
+    return current;
   }
 
-  if (best) split(best, size);
+  best = current;
+  int best_size = best->words;
+  while (current->notlast) {
+    if (current->free 
+      && current->words >= size 
+      && (current->words < best_size)) {
+        best = current;
+        best_size = current->words;
+        if (best_size == size) break;
+    }
+    current += current->words;
+  }
+
+  //if (best) split(best, size);
   return best;
 }
 
-
-struct block_meta *request_space(struct block_meta* last, size_t size) {
-  struct block_meta *block;
-  block = (struct block_meta*) align((size_t)sbrk(0)); //TODO: Auto-alignment?
-  if (brk((void *)block + size + META_SIZE) == -1) { //TODO: not thread safe
-    return NULL; // sbrk failed.
+//input: size is the total words in the block, including meta
+block_meta *request_space(block_meta* last, wordcount size) {
+  if (!last) { // NULL on first request, create an (aligned) terminating block.
+    last = (block_meta*) align((size_t)sbrk(0));
+    if (brk(last+1) == -1) { //TODO: not thread safe
+      return NULL; // brk failed.
+    }
+    last->words = 0;
+    last->notlast = 0;
+    last->free = 2; //TODO: debug only
   }
-  //void *request = sbrk(size + META_SIZE);
-  //assert((void*)block == request); // Not thread safe.
-  //if (request == (void*) -1) {
-  //  return NULL; // sbrk failed.
-  //}
+  assert(!last->notlast);
   
-  if (last) { // NULL on first request.
-    last->next = block;
+  assert(sbrk(0) == last+1);
+  void *request = sbrk(size * WORD_SIZE);
+  if(request == (void *) -1) {
+    return NULL;
   }
-  block->size = size;
-  block->next = NULL;
-  block->free = 0;
-  block->magic = 12345678;
-  return block;
+
+  block_meta *new_last = last + size;
+  new_last->words = 0;
+  new_last->notlast = 0;
+  new_last->free = 3; 
+
+  last->words = size;
+  last->notlast = 1;
+  last->free = 0;
+  return last;
 }
 
 // If it's the first ever call, i.e., global_base == NULL, request_space and set global_base.
 // Otherwise, if we can find a free block, use it.
 // If not, request_space.
 void *malloc(size_t size) {
-  //printf("malloc %x\n", (int)size);
-  struct block_meta *block;
-  // TODO: align size?
+  block_meta *block;
 
   if (size <= 0) {
     return NULL;
   }
 
+  wordcount words_needed = size_to_words(size) +1;
   if (!global_base) { // First call.
-    block = request_space(NULL, size);
+    block = request_space(NULL, words_needed);
     if (!block) {
       return NULL;
     }
     global_base = block;
   } else {
-    struct block_meta *last = global_base;
-    block = find_free_block(&last, size);
-    if (!block) { // Failed to find free block.
-      block = request_space(last, size);
+    block = find_free_block(words_needed);
+    if (!block->notlast) { // Failed to find free block.
+      block = request_space(block, words_needed);
       if (!block) {
-  return NULL;
+        return NULL;
       }
     } else {      // Found free block
-      // TODO: consider splitting block here.
       block->free = 0;
-      block->magic = 77777777;
     }
   }
   
@@ -185,8 +184,8 @@ void *calloc(size_t nelem, size_t elsize) {
 }
 
 // TODO: maybe do some validation here.
-struct block_meta *get_block_ptr(void *ptr) {
-  return (struct block_meta*)ptr - 1;
+block_meta *get_block_ptr(void *ptr) {
+  return (block_meta*)ptr - 1;
 }
 
 
@@ -196,23 +195,18 @@ struct block_meta *get_block_ptr(void *ptr) {
 
 
 
-//TODO: lower SBRK
 void free(void *ptr) {
-  //printf("free %p\n", ptr);
   if (!ptr) {
     return;
   }
 
-  struct block_meta* block_ptr = get_block_ptr(ptr);
-
+  block_meta* block_ptr = get_block_ptr(ptr);
 
   assert(block_ptr->free == 0);
-  assert(block_ptr->magic != 55555555);
   block_ptr->free = 1;
-  block_ptr->magic = 55555555;  
-  merge_with_next(block_ptr);
+  //merge_with_next(block_ptr);
 
-  struct block_meta *previous =  find_previous(block_ptr);
+  /*struct block_meta *previous =  find_previous(block_ptr);
   if (previous) {
     merge_with_next(previous);
     if (!(previous->next)) {
@@ -221,7 +215,7 @@ void free(void *ptr) {
     }
   }
 
-  if (!block_ptr->next) {
+  if (!block_ptr->notlast) {
     if (previous) {
       brk((void *)previous + previous->size + META_SIZE);  //TODO make this safer
       previous->next = NULL; 
@@ -230,10 +224,10 @@ void free(void *ptr) {
       brk(global_base);
       global_base = NULL;
     }
-  }
+  }*/
 }
 
-void *realloc(void *ptr, size_t size) {
+/*void *realloc(void *ptr, size_t size) {
   if (!ptr) { 
     // NULL ptr. realloc should act like malloc.
     return malloc(size);
@@ -255,7 +249,7 @@ void *realloc(void *ptr, size_t size) {
   memcpy(new_ptr, ptr, block_ptr->size);
   free(ptr);  
   return new_ptr;
-}
+}*/
 
 
 /*void analyze() { //size_t *total_free, size_t *total_used, size_t *total_gap, int *total_blocks) {
@@ -263,6 +257,7 @@ void *realloc(void *ptr, size_t size) {
     int total_blocks = 0;
     while (block) {
         total_blocks++;
+        printf("Size:%ld\n", block->size);
         block = block ->next;
     }
     printf("Sizeof linked list: %d", total_blocks * META_SIZE);
@@ -270,28 +265,27 @@ void *realloc(void *ptr, size_t size) {
 
 
 void analyze( int printall) { //size_t *total_free, size_t *total_used, size_t *total_gap, int *total_blocks) {
-    struct block_meta *block = global_base;
+    block_meta *block = global_base;
     size_t total_free = 0;
     size_t total_gap = 0;
     size_t total_used = 0;
     int total_blocks = 0;
-    size_t gap;
-    while (block) {
+    while (1) {  //TODO change to notlast
         total_blocks++;
+        size_t size = (block->words -1) * WORD_SIZE;
+        char gap = 0;
         if (block->free) {
-            total_free += block->size;
+            total_free += size;
         } else {
-            total_used += block->size;
+            total_used += size;
+            if (block->notlast) gap =*(char *)(block+1); //stored by driver function
         }
-        if (printall) printf("  Blck #: %d, Loc: %p, Siz: %ld, IsFree: %d, Mag: %d", total_blocks, block, block->size, block->free, block->magic);
-
-        if (block->next) {
-            gap = (void *) block->next - (void *) block - META_SIZE - block->size;
-            total_gap += gap;
-            if (printall) printf(", Gap(d): %ld", gap);
-        }
-        if (printall) printf("\n");
-        block = block ->next;
+        total_gap += gap;
+        
+        if (printall) printf("  Blck #: %d, Loc: %p, Siz: %ld, IsFree: %d, Gap: %d\n, NotLast %d\n",
+          total_blocks, block, size, block->free, gap, block->notlast);
+        if (!block->notlast) break;
+        block += block->words;
     }
     size_t size_of_linkedlist = total_blocks * META_SIZE;
     size_t waste = size_of_linkedlist + total_gap + total_free;
