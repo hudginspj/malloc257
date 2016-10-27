@@ -35,53 +35,49 @@ wordcount size_to_words(size_t size) {
 }
 
 
-/*struct block_meta *find_previous(struct block_meta *current) {
+block_meta *find_previous(block_meta *current) {
   if (current == global_base) {
     return NULL;
   }
-  struct block_meta *search = global_base;
-  while (search && (search->next != current)) {
-    search = search->next;
+  block_meta *search = global_base;
+  block_meta *next_search = search + search->words;
+  while (next_search != current){
+    assert(next_search->notlast);
+    search = next_search;
+    next_search += next_search->words;
   }
   return search;
 }
 
-void merge_with_next(struct block_meta *block) {
+void merge_with_next(block_meta *block) {
     if (block
-      && block->next 
-      && block->free 
-      && block->next->free) {
-        void *end = block->next->size + (void *) (block->next);  //TODO: Check: uses pointers to the metas instead of the blocks because they cancel
-        block->size = end - (void *) block;
-        block->next = block->next->next;
-        block->magic = 44;
+        && block->notlast 
+        && block->free) {
+      block_meta *next = block + block->words;
+      if (next->free && next->notlast) {
+        block->words += next->words;
+        block->notlast = next->notlast;
+      }
     } 
 }
 
 
-int split(struct block_meta *old_block, size_t size) {
-    struct block_meta *new_block;
-    assert(old_block->size >= size);
+void split(block_meta *old_block, wordcount words) {
+    block_meta *new_block;
+    assert(old_block->words >= words);
+    assert(old_block->notlast);
 
-    if (old_block->size <= (size_t) align(size + META_SIZE + ALIGNMENT)) {
-        old_block->size = size; //TODO Creates inificiency because cannot be used until merge
-        return(-1);
+    if (old_block->words <= words) {
+        return;
     }
-    new_block = (struct block_meta*) align((size_t)old_block + size + META_SIZE);
-    //new_block--;
-    new_block->next = old_block->next;
-    new_block->size = (new_block->next)
-          ?(size_t) ((void *) new_block->next - (void *) new_block) - META_SIZE
-          :old_block->size - size - META_SIZE;
+    new_block = old_block + words;
+    new_block->words = old_block->words - words;
     new_block->free = 1;
-    new_block->magic = 11;
-    old_block->size = size;
-    old_block->next = new_block;
-    //old_block->free = 1;
-    old_block->magic = 22;
+    new_block->notlast = 1;
+
+    old_block->words = words;
     merge_with_next(new_block);
-    return(0);
-}*/
+}
 
 // Iterate through blocks until we find one that's large enough.
 // TODO: split block up if it's larger than necessary
@@ -110,7 +106,7 @@ block_meta *find_free_block(wordcount size) {
     current += current->words;
   }
 
-  //if (best) split(best, size);
+  if (best) split(best, size);
   return best;
 }
 
@@ -204,17 +200,17 @@ void free(void *ptr) {
 
   assert(block_ptr->free == 0);
   block_ptr->free = 1;
-  //merge_with_next(block_ptr);
+  merge_with_next(block_ptr);
 
-  /*struct block_meta *previous =  find_previous(block_ptr);
+  block_meta *previous =  find_previous(block_ptr);
   if (previous) {
     merge_with_next(previous);
-    if (!(previous->next)) {
+    /*if (!(previous->next)) {
       block_ptr = previous;
       previous = find_previous(block_ptr);
-    }
+    }*/
   }
-
+  /*
   if (!block_ptr->notlast) {
     if (previous) {
       brk((void *)previous + previous->size + META_SIZE);  //TODO make this safer
@@ -282,7 +278,7 @@ void analyze( int printall) { //size_t *total_free, size_t *total_used, size_t *
         }
         total_gap += gap;
         
-        if (printall) printf("  Blck #: %d, Loc: %p, Siz: %ld, IsFree: %d, Gap: %d\n, NotLast %d\n",
+        if (printall) printf("  Blck #: %d, Loc: %p, Siz: %ld, IsFree: %d, Gap: %d, NotLast %d\n",
           total_blocks, block, size, block->free, gap, block->notlast);
         if (!block->notlast) break;
         block += block->words;

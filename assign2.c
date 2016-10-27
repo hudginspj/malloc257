@@ -116,7 +116,7 @@ int main(int argc, char *argv[]) {
     printf("Original program break: %p\n", original_sbrk);
 
 
-    void *p1 = malloc(103);
+    /*void *p1 = malloc(103);
     analyze(1);
     void *p2 = malloc(203);
     analyze(1);
@@ -129,26 +129,11 @@ int main(int argc, char *argv[]) {
     free(p3);
     analyze(1);
     free(p2);
-    analyze(1);
-
-    /*printf("p2\n");
-    void *p2 = realloc(NULL,100);
-    analyze(1);
-    p2 = realloc(p2, 50);
-    analyze(1);
-    p2 = realloc(p2, 150);
-    analyze(1);
-    printf("p3\n");
-    void *p3 = realloc(NULL,100);
-    analyze(1);
-    p3 = realloc(p3, 50);
-    analyze(1);
-    p3 = realloc(p3, 150);
     analyze(1);*/
 
 
     
-    /*int num_ptrs = 500;
+    int num_ptrs = 500;
     void **ptrs = (void**) calloc(num_ptrs, sizeof(void*));
     
     rand_test_malloc(num_ptrs, ptrs, 24, 10000);
@@ -162,11 +147,13 @@ int main(int argc, char *argv[]) {
     printf("      sbrk(0)-original: %ld\n", (sbrk(0) - original_sbrk));
     rand_test_malloc(num_ptrs, ptrs, 1000, 10000);
     analyze(0);
-    rand_test_free(num_ptrs, ptrs, 400);
-    analyze(0);
+    rand_test_free(num_ptrs, ptrs, 450);
+    analyze(1);
     printf("      sbrk(0)-original: %ld\n", (sbrk(0) - original_sbrk));
+    free_all(num_ptrs, ptrs);
+    analyze(ptrs);
 	
-	
+	/*
     rand_test_calloc(num_ptrs, ptrs, 1000, 8, 10000);
     analyze(0);
     rand_test_calloc(num_ptrs, ptrs, 10, 8, 10000);
