@@ -20,17 +20,24 @@
 
 void *global_base = NULL;
 
-//TODO: clean
-size_t align(size_t ptr_value) {
+block_meta *get_global_base() {
+  return global_base;
+}
+
+block_meta *get_block_ptr(void *ptr) {
+  return (block_meta*)ptr - 1;
+}
+
+/*size_t align(size_t ptr_value) {
     int remainder = ptr_value % WORD_SIZE;
     if (remainder) {
         ptr_value += WORD_SIZE - remainder;
     }
     return ptr_value;
-}
+} */
 
 wordcount size_to_words(size_t size) {
-  return ((size-1)>>3)+1;
+  return ((size-1)/WORD_SIZE)+1;
 }
 
 
@@ -113,13 +120,14 @@ block_meta *find_free_block(wordcount size) {
 //input: size is the total words in the block, including meta
 block_meta *request_space(block_meta* last, wordcount size) {
   if (!last) { // NULL on first request, create an (aligned) terminating block.
-    last = (block_meta*) align((size_t)sbrk(0));
+    //last = (block_meta*) align((size_t)sbrk(0));
+    last = (block_meta*) (8 * size_to_words((size_t)sbrk(0)) );
     if (brk(last+1) == -1) { //TODO: not thread safe
       return NULL; // brk failed.
     }
     last->words = 0;
     last->notlast = 0;
-    last->free = 7; //TODO: debug only
+    last->free = 1; //TODO: debug only
   }
   assert(!last->notlast);
   
@@ -132,7 +140,7 @@ block_meta *request_space(block_meta* last, wordcount size) {
   block_meta *new_last = last + size;
   new_last->words = 0;
   new_last->notlast = 0;
-  new_last->free = 9; 
+  new_last->free = 1; 
 
   last->words = size;
   last->notlast = 1;
@@ -179,10 +187,7 @@ void *calloc(size_t nelem, size_t elsize) {
   return ptr;
 }
 
-// TODO: maybe do some validation here.
-block_meta *get_block_ptr(void *ptr) {
-  return (block_meta*)ptr - 1;
-}
+
 
 
 void free(void *ptr) {
@@ -210,7 +215,7 @@ void free(void *ptr) {
       brk(block_ptr + 1);  //TODO make this safer
       block_ptr->words = 0;
       block_ptr->notlast = 0;
-      block_ptr->free = 5; 
+      block_ptr->free = 1; 
     } else {
       brk(global_base);
       global_base = NULL;
@@ -256,6 +261,6 @@ void *realloc(void *ptr, size_t size) {
     printf("Sizeof linked list: %d", total_blocks * META_SIZE);
 }*/
 
-block_meta *get_global_base() {
-  return global_base;
-}
+
+
+

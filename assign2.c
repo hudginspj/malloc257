@@ -132,7 +132,7 @@ void analyze( int printall) { //size_t *total_free, size_t *total_used, size_t *
         	break;
         }
     }
-    size_t size_of_linkedlist = total_blocks * META_SIZE;
+    size_t size_of_linkedlist = total_blocks * WORD_SIZE;
     size_t waste = size_of_linkedlist + total_gap + total_free;
     size_t heap_size = waste + total_used;
     printf("    Num Blocks: %d, Allocated Space: %ld, sbrk(0)-original: %ld\n",
@@ -168,6 +168,8 @@ void analyze_with_prompt() {
 int main(int argc, char *argv[]) {   
     original_sbrk = sbrk(0);
     printf("Original program break: %p\n", original_sbrk);
+
+    printf("Word %d/Meta size %d", WORD_SIZE, sizeof(block_meta));
 
     /*printf("*** TEST 1 ***");
     void *p1 = malloc(103);
@@ -252,4 +254,3 @@ int main(int argc, char *argv[]) {
     return(0);
 }
 //  cd /cygdrive/c/users/pjhud/bash/a2
-
