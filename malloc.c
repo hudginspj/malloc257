@@ -28,14 +28,6 @@ block_meta *get_block_ptr(void *ptr) {
   return (block_meta*)ptr - 1;
 }
 
-/*size_t align(size_t ptr_value) {
-    int remainder = ptr_value % WORD_SIZE;
-    if (remainder) {
-        ptr_value += WORD_SIZE - remainder;
-    }
-    return ptr_value;
-} */
-
 wordcount size_to_words(size_t size) {
   return ((size-1)/WORD_SIZE)+1;
 }
@@ -56,7 +48,6 @@ block_meta *find_previous(block_meta *current) {
   return search;
 }
 
-//check that block is free before calling, do not need to check next
 void merge_with_next(block_meta *block) {
     if (block
         && block->notlast ) {
@@ -68,15 +59,12 @@ void merge_with_next(block_meta *block) {
     } 
 }
 
-
 void split(block_meta *old_block, wordcount words) {
-    block_meta *new_block;
-    //assert(old_block->words >= words);
-    //assert(old_block->notlast);
-
-    if (old_block->words <= words) {
+    if (old_block->words <= words || !old_block->notlast) {
         return;
     }
+
+    block_meta *new_block;
     new_block = old_block + words;
     new_block->words = old_block->words - words;
     new_block->free = 1;
@@ -86,63 +74,61 @@ void split(block_meta *old_block, wordcount words) {
     merge_with_next(new_block);
 }
 
-// Iterate through blocks until we find one that's large enough.
-// TODO: split block up if it's larger than necessary
-block_meta *find_free_block(wordcount size) {
+block_meta *find_free_block(wordcount words) {
   block_meta *current = global_base;
   block_meta *best;
   while (current->notlast 
       && !(current->free 
-      && current->words >= size)) { 
+      && current->words >= words)) { 
     current += current->words;
   }
+
   if (!current->notlast) {
     return current;
   }
 
   best = current;
-  int best_size = best->words;
+  wordcount best_size = best->words;
   while (current->notlast) {
     if (current->free 
-      && current->words >= size 
+      && current->words >= words 
       && (current->words < best_size)) {
         best = current;
         best_size = current->words;
-        if (best_size == size) break;
+        if (best_size == words) break;
     }
     current += current->words;
   }
 
-  if (best) split(best, size);
+  if (best) split(best, words);
   return best;
 }
 
 //input: size is the total words in the block, including meta
-block_meta *request_space(block_meta* last, wordcount size) {
+block_meta *request_space(block_meta* last, wordcount words) {
   if (!last) { // NULL on first request, create an (aligned) terminating block.
-    //last = (block_meta*) align((size_t)sbrk(0));
     last = (block_meta*) (8 * size_to_words((size_t)sbrk(0)) );
     if (brk(last+1) == -1) { //TODO: not thread safe
       return NULL; // brk failed.
     }
     last->words = 0;
     last->notlast = 0;
-    last->free = 1; //TODO: debug only
+    last->free = 1;
   }
   assert(!last->notlast);
   
   assert(sbrk(0) == last+1);
-  void *request = sbrk(size * WORD_SIZE);
+  void *request = sbrk(words * WORD_SIZE);
   if(request == (void *) -1) {
     return NULL;
   }
 
-  block_meta *new_last = last + size;
+  block_meta *new_last = last + words;
   new_last->words = 0;
   new_last->notlast = 0;
   new_last->free = 1; 
 
-  last->words = size;
+  last->words = words;
   last->notlast = 1;
   last->free = 0;
   return last;
@@ -180,16 +166,6 @@ void *malloc(size_t size) {
   return(block+1);
 }
 
-void *calloc(size_t nelem, size_t elsize) {
-  size_t size = nelem * elsize;
-  void *ptr = malloc(size);
-  memset(ptr, 0, size);
-  return ptr;
-}
-
-
-
-
 void free(void *ptr) {
   if (!ptr) {
     return;
@@ -223,6 +199,13 @@ void free(void *ptr) {
   }
 }
 
+void *calloc(size_t nelem, size_t elsize) {
+  size_t size = nelem * elsize;
+  void *ptr = malloc(size);
+  memset(ptr, 0, size);
+  return ptr;
+}
+
 void *realloc(void *ptr, size_t size) {
   if (!ptr) { 
     // NULL ptr. realloc should act like malloc.
@@ -249,17 +232,6 @@ void *realloc(void *ptr, size_t size) {
   return new_ptr;
 }
 
-
-/*void analyze() { //size_t *total_free, size_t *total_used, size_t *total_gap, int *total_blocks) {
-    struct block_meta *block = global_base;
-    int total_blocks = 0;
-    while (block) {
-        total_blocks++;
-        printf("Size:%ld\n", block->size);
-        block = block ->next;
-    }
-    printf("Sizeof linked list: %d", total_blocks * META_SIZE);
-}*/
 
 
 
