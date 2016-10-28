@@ -33,7 +33,7 @@ void store_gap(void *ptr, size_t size) {
 
 void rand_test_malloc(int num_ptrs, void **ptrs, int max_size, int num_calls) {
 	int i;
-	printf("\nSimulating %d calls to malloc(1 <= n <= %d) using %d pointers:\n",
+	printf("\nExec %d random calls to free and malloc(1 <= n <= %d) on %d pointers:\n",
 		num_calls, max_size, num_ptrs);
 	for (i = 0; i < num_calls; i++) {
 		int index= rand()%num_ptrs;
@@ -48,7 +48,7 @@ void rand_test_malloc(int num_ptrs, void **ptrs, int max_size, int num_calls) {
 
 void rand_test_calloc(int num_ptrs, void **ptrs, int max_elements, int element_size, int num_calls) {
 	int i;
-	printf("\nSimulating %d calls to calloc(1 <= n <= %d, elsize %d) using %d pointers:\n",
+	printf("\nExec %d random calls to calloc(1 <= n <= %d, elsize %d) on %d ptrs:\n",
 		num_calls, max_elements, element_size, num_ptrs);
 	for (i = 0; i < num_calls; i++) {
 		int index= rand()%num_ptrs;
@@ -63,7 +63,7 @@ void rand_test_calloc(int num_ptrs, void **ptrs, int max_elements, int element_s
 
 void rand_test_realloc(int num_ptrs, void **ptrs, int max_size, int num_calls) {
 	int i;
-	printf("\nSimulating %d calls to realloc(1 <= n <= %d) using %d pointers:\n",
+	printf("\nExec %d random calls to realloc(1 <= n <= %d) on %d ptrs:\n",
 		num_calls, max_size, num_ptrs);
 	for (i = 0; i < num_calls; i++) {
 		int index= rand()%num_ptrs;
@@ -105,7 +105,7 @@ void analyze( int printall) { //size_t *total_free, size_t *total_used, size_t *
     int total_blocks = 0;
     while (block) {  //TODO change to notlast
         total_blocks++;
-        if (printall) printf("  Blck: %d, Loc: %p, ", total_blocks, block);
+        if (printall) printf("  Blck: %3d, Loc: %p, ", total_blocks, block);
         
         size_t size = (block->words -1) * WORD_SIZE;
         char gap = 0;
@@ -137,7 +137,7 @@ void analyze( int printall) { //size_t *total_free, size_t *total_used, size_t *
     size_t heap_size = waste + total_used;
     printf("    Num Blocks: %d, Allocated Space: %ld, sbrk(0)-original: %ld\n",
         total_blocks, total_used, (sbrk(0) - original_sbrk));
-    printf("    (LEAKS) Size of LList: %ld, Free Space: %ld, Align Gaps: %ld,\n",
+    printf("    (LEAKS) Total Metadata: %ld, Free Space: %ld, Align Gaps: %ld,\n",
         size_of_linkedlist, total_free, total_gap);
     printf("    (EFFICIENCY) Expected Heap Size %ld, Waste: %ld, Effic: %ld%%\n",
         waste + total_used, waste, 
@@ -145,13 +145,15 @@ void analyze( int printall) { //size_t *total_free, size_t *total_used, size_t *
 }
 
 void analyze_with_prompt() {
-	analyze(0);
-	char response[8];
-	printf("Print structure of linked list? [y/n]: ");
-	fgets(response, 8, stdin);
-	if (response[0] == 'y') {
-		analyze(1);
-	}
+    analyze(0);
+    char response[8];
+    printf("Print structure of linked list? [y/n/q]: ");
+    fgets(response, 8, stdin);
+    if (response[0] == 'y') {
+        analyze(1);
+    } else if (response[0] == 'q') {
+        exit(EXIT_SUCCESS);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -193,44 +195,43 @@ int main(int argc, char *argv[]) {
     free(p2);
     analyze(1);*/
 
-
-    
     int num_ptrs = 500;
+
+    printf("Allocating an array to store pointers for subsequent tests:\n");
     void **ptrs = (void**) calloc(num_ptrs+1, sizeof(void*));
     //*ptrs = 0;
     ptrs++;
-
-    
-    rand_test_calloc(num_ptrs/8, ptrs, 20, 8, 10000);
-    analyze_with_prompt();
-    rand_test_calloc(num_ptrs, ptrs, 24, 1, 10000);
-    analyze_with_prompt();
-    rand_test_calloc(num_ptrs, ptrs, 125, 8, 10000);
-    analyze_with_prompt();
-    
-    free_all(num_ptrs, ptrs);
     analyze_with_prompt();
 
-    rand_test_malloc(num_ptrs, ptrs, 1000, 10000);
+
+    rand_test_malloc(20, ptrs, 1000, 500);
     analyze_with_prompt();
-    rand_test_free(num_ptrs, ptrs, 100);
-    analyze_with_prompt();
-    //printf("      sbrk(0)-original: %ld\n", (sbrk(0) - original_sbrk));
+    //rand_test_free(num_ptrs, ptrs, 100);
+    //analyze_with_prompt();
     rand_test_malloc(num_ptrs, ptrs, 1000, 10000);
     analyze_with_prompt();
     rand_test_free(num_ptrs, ptrs, 450);
     analyze_with_prompt();
-    //printf("      sbrk(0)-original: %ld\n", (sbrk(0) - original_sbrk));
+    free_all(num_ptrs, ptrs);
+    analyze_with_prompt();
+
+    rand_test_calloc(50, ptrs, 20, 8, 10000);
+    analyze_with_prompt();
+    rand_test_calloc(num_ptrs, ptrs, 24, 1, 10000);
+    analyze_with_prompt();
+    //rand_test_calloc(num_ptrs, ptrs, 125, 8, 10000);
+    //analyze_with_prompt();
+    
     free_all(num_ptrs, ptrs);
     analyze_with_prompt();
 
     
-    rand_test_realloc(50, ptrs, 1000, 10000);
+    rand_test_realloc(50, ptrs, 1000, 1000);
     analyze_with_prompt();
     rand_test_realloc(num_ptrs, ptrs, 1000, 10000);
     analyze_with_prompt();
-    rand_test_realloc(num_ptrs, ptrs, 1000, 10000);
-    analyze_with_prompt();
+    //rand_test_realloc(num_ptrs, ptrs, 1000, 10000);
+    //analyze_with_prompt();
      
 	
     free_all(num_ptrs, ptrs);
