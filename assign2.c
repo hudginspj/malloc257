@@ -135,6 +135,14 @@ int main(int argc, char *argv[]) {
     
     int num_ptrs = 500;
     void **ptrs = (void**) calloc(num_ptrs, sizeof(void*));
+
+    
+    rand_test_calloc(num_ptrs/8, ptrs, 20, 8, 10000);
+    analyze(0);
+    rand_test_calloc(num_ptrs, ptrs, 24, 1, 10000);
+    analyze(0);
+    rand_test_calloc(num_ptrs, ptrs, 125, 8, 10000);
+    analyze(0);
     
     rand_test_malloc(num_ptrs, ptrs, 24, 10000);
     analyze(1);
@@ -148,18 +156,13 @@ int main(int argc, char *argv[]) {
     rand_test_malloc(num_ptrs, ptrs, 1000, 10000);
     analyze(0);
     rand_test_free(num_ptrs, ptrs, 450);
-    analyze(1);
+    analyze(0);
     printf("      sbrk(0)-original: %ld\n", (sbrk(0) - original_sbrk));
     free_all(num_ptrs, ptrs);
-    analyze(ptrs);
+    analyze(0);
 	
-	/*
-    rand_test_calloc(num_ptrs, ptrs, 1000, 8, 10000);
-    analyze(0);
-    rand_test_calloc(num_ptrs, ptrs, 10, 8, 10000);
-    analyze(0);
-    rand_test_calloc(num_ptrs, ptrs, 800, 1, 10000);
-    analyze(0);
+	
+    
 
     
     rand_test_realloc(num_ptrs, ptrs, 1000, 10000);
@@ -167,7 +170,7 @@ int main(int argc, char *argv[]) {
     rand_test_realloc(num_ptrs, ptrs, 1000, 10000);
     analyze(0);
     rand_test_realloc(num_ptrs, ptrs, 1000, 10000);
-    analyze(1);
+    analyze(0);
     printf("      sbrk(0)-original: %ld\n", (sbrk(0) - original_sbrk)); 
 	
     free_all(num_ptrs, ptrs);
@@ -178,7 +181,7 @@ int main(int argc, char *argv[]) {
     free(ptrs);
     analyze(1);
     printf("      sbrk(0)-original: %ld\n", (sbrk(0) - original_sbrk));  
-*/
+
     
 
 

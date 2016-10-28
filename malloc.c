@@ -15,7 +15,6 @@
 #include <unistd.h>
 #include <stdio.h>
 #include "malloc.h"
-// Don't include stdlb since the names will conflict?
 
 
 
@@ -49,10 +48,10 @@ block_meta *find_previous(block_meta *current) {
   return search;
 }
 
+//check that block is free before calling, do not need to check next
 void merge_with_next(block_meta *block) {
     if (block
-        && block->notlast 
-        && block->free) {
+        && block->notlast ) {
       block_meta *next = block + block->words;
       if (next->free && next->notlast) {
         block->words += next->words;
@@ -64,8 +63,8 @@ void merge_with_next(block_meta *block) {
 
 void split(block_meta *old_block, wordcount words) {
     block_meta *new_block;
-    assert(old_block->words >= words);
-    assert(old_block->notlast);
+    //assert(old_block->words >= words);
+    //assert(old_block->notlast);
 
     if (old_block->words <= words) {
         return;
@@ -119,7 +118,7 @@ block_meta *request_space(block_meta* last, wordcount size) {
     }
     last->words = 0;
     last->notlast = 0;
-    last->free = 2; //TODO: debug only
+    last->free = 7; //TODO: debug only
   }
   assert(!last->notlast);
   
@@ -132,7 +131,7 @@ block_meta *request_space(block_meta* last, wordcount size) {
   block_meta *new_last = last + size;
   new_last->words = 0;
   new_last->notlast = 0;
-  new_last->free = 3; 
+  new_last->free = 9; 
 
   last->words = size;
   last->notlast = 1;
@@ -185,12 +184,6 @@ block_meta *get_block_ptr(void *ptr) {
 }
 
 
-
-/////////////////////////////////////////////////////////////
-//Free/Merge
-
-
-
 void free(void *ptr) {
   if (!ptr) {
     return;
@@ -202,35 +195,38 @@ void free(void *ptr) {
   block_ptr->free = 1;
   merge_with_next(block_ptr);
 
+  //merge with previous
   block_meta *previous =  find_previous(block_ptr);
-  if (previous) {
+  if (previous && previous->free) {
     merge_with_next(previous);
-    /*if (!(previous->next)) {
-      block_ptr = previous;
-      previous = find_previous(block_ptr);
-    }*/
+    block_ptr = previous;
   }
-  /*
-  if (!block_ptr->notlast) {
-    if (previous) {
-      brk((void *)previous + previous->size + META_SIZE);  //TODO make this safer
-      previous->next = NULL; 
+
+  //lower program break if necessary
+  block_meta *next = block_ptr + block_ptr->words;
+  if (!next->notlast) {
+    if (block_ptr != global_base) {
+      brk(block_ptr + 1);  //TODO make this safer
+      block_ptr->words = 0;
+      block_ptr->notlast = 0;
+      block_ptr->free = 5; 
     } else {
-      assert(block_ptr = global_base);
       brk(global_base);
       global_base = NULL;
     }
-  }*/
+  }
 }
 
-/*void *realloc(void *ptr, size_t size) {
+void *realloc(void *ptr, size_t size) {
   if (!ptr) { 
     // NULL ptr. realloc should act like malloc.
     return malloc(size);
   }
-
-  struct block_meta* block_ptr = get_block_ptr(ptr);
-  if (block_ptr->size >= size) {
+  
+  wordcount words_needed = size_to_words(size) +1;
+  block_meta* block_ptr = get_block_ptr(ptr);
+  merge_with_next(block_ptr); //TODO this could be the problem
+  if (block_ptr->words >= words_needed) {
     split(block_ptr, size);
     return ptr;
   }
@@ -242,10 +238,10 @@ void free(void *ptr) {
   if (!new_ptr) {
     return NULL; // TODO: set errno on failure.
   }
-  memcpy(new_ptr, ptr, block_ptr->size);
+  memcpy(new_ptr, ptr, block_ptr->words * WORD_SIZE);
   free(ptr);  
   return new_ptr;
-}*/
+}
 
 
 /*void analyze() { //size_t *total_free, size_t *total_used, size_t *total_gap, int *total_blocks) {
@@ -266,20 +262,23 @@ void analyze( int printall) { //size_t *total_free, size_t *total_used, size_t *
     size_t total_gap = 0;
     size_t total_used = 0;
     int total_blocks = 0;
-    while (1) {  //TODO change to notlast
+    while (block) {  //TODO change to notlast
         total_blocks++;
-        size_t size = (block->words -1) * WORD_SIZE;
+        size_t allocation = (block->words -1) * WORD_SIZE;
         char gap = 0;
-        if (block->free) {
-            total_free += size;
+        if (!block->notlast) {
+          allocation = 0;
+        } if (block->free) {
+            total_free += allocation;
         } else {
-            total_used += size;
-            if (block->notlast) gap =*(char *)(block+1); //stored by driver function
+            gap =*(char *)(block+1);  //stored by driver function
+            allocation -= gap;
+            total_used += allocation;
         }
         total_gap += gap;
         
         if (printall) printf("  Blck #: %d, Loc: %p, Siz: %ld, IsFree: %d, Gap: %d, NotLast %d\n",
-          total_blocks, block, size, block->free, gap, block->notlast);
+          total_blocks, block, allocation, block->free, gap, block->notlast);
         if (!block->notlast) break;
         block += block->words;
     }
