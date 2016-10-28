@@ -40,6 +40,7 @@ block_meta *find_previous(block_meta *current) {
   }
   block_meta *search = global_base;
   block_meta *next_search = search + search->words;
+  if (!next_search->notlast) return NULL;
   while (next_search != current){
     assert(next_search->notlast);
     search = next_search;
@@ -227,7 +228,7 @@ void *realloc(void *ptr, size_t size) {
   block_meta* block_ptr = get_block_ptr(ptr);
   merge_with_next(block_ptr); //TODO this could be the problem
   if (block_ptr->words >= words_needed) {
-    split(block_ptr, size);
+    split(block_ptr, words_needed);
     return ptr;
   }
 
@@ -255,46 +256,6 @@ void *realloc(void *ptr, size_t size) {
     printf("Sizeof linked list: %d", total_blocks * META_SIZE);
 }*/
 
-
-void analyze( int printall) { //size_t *total_free, size_t *total_used, size_t *total_gap, int *total_blocks) {
-    block_meta *block = global_base;
-    size_t total_free = 0;
-    size_t total_gap = 0;
-    size_t total_used = 0;
-    int total_blocks = 0;
-    while (block) {  //TODO change to notlast
-        total_blocks++;
-        size_t allocation = (block->words -1) * WORD_SIZE;
-        char gap = 0;
-        if (!block->notlast) {
-          allocation = 0;
-        } if (block->free) {
-            total_free += allocation;
-        } else {
-            gap =*(char *)(block+1);  //stored by driver function
-            allocation -= gap;
-            total_used += allocation;
-        }
-        total_gap += gap;
-        
-        if (printall) printf("  Blck #: %d, Loc: %p, Siz: %ld, IsFree: %d, Gap: %d, NotLast %d\n",
-          total_blocks, block, allocation, block->free, gap, block->notlast);
-        if (!block->notlast) break;
-        block += block->words;
-    }
-    size_t size_of_linkedlist = total_blocks * META_SIZE;
-    size_t waste = size_of_linkedlist + total_gap + total_free;
-    size_t heap_size = waste + total_used;
-    printf("    Num Blocks: %d, Total Used Space: %ld\n",
-        total_blocks, total_used);
-    printf("    (LEAKS) Size of LList: %ld, Free Space: %ld, Align Gaps: %ld,\n",
-        size_of_linkedlist, total_free, total_gap);
-    printf("    (EFFICIENCY) Expected Heap Size %ld, Waste: %ld, Effic: %ld%%\n",
-        waste + total_used, waste, 
-        (heap_size) ? (total_used * 100 / (heap_size)) : 100);
-
-    //MEM leaks defined as size of linked list + frees + gaps
-    //WHAT is size when you can't fit another block? makes a leak?
-    //Run with alignment of 0 and alignment of 8.
-    //Show comparison with original.
+block_meta *get_global_base() {
+  return global_base;
 }

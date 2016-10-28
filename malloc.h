@@ -50,5 +50,6 @@ void free(void *ptr) ;
 
 void analyze( int printall);
 
+block_meta *get_global_base() ;
 
 #endif // MALLOC_INCLUDED
