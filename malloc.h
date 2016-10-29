@@ -14,19 +14,18 @@
 // Functional Prototypes
 
 
-#define WORD_SIZE sizeof(size_t)  //META_SIZE should equal WORD_SIZE
+#define WORD_SIZE sizeof(long) 
 
-typedef size_t wordcount;
+typedef long wordcount;
 
 typedef struct {
-  wordcount words : ((WORD_SIZE*8)-2); //Words in entire block, including metadata.
+  //Words in entire block, including metadata.
+  wordcount words : ((WORD_SIZE*8)-2); 
   char free : 1;
   char notlast : 1;
 } block_meta;
 
 
-
-// TODO: maybe do some validation here.
 block_meta *get_block_ptr(void *ptr) ;
 
 block_meta *get_global_base() ;
