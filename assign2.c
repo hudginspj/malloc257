@@ -1,17 +1,17 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  File           : assign1.c
+//  File           : assign2.c
 //  Description    : This is the main source code for for the first assignment
 //                   of CMSC257.  
 //
 //   Author        : Paul Hudgins
-//   Last Modified : 10/5/16
+//   Last Modified : 10/28/16
 //
 
 // Include Files
 #include <stdio.h>
 #include <assert.h>
-#include <stdlib.h> //For ranodom, beware of conflicts
+#include <stdlib.h> //For random, beware of conflicts
 #include <sys/types.h>
 #include <unistd.h>
 #include <string.h>
@@ -19,7 +19,7 @@
 // Project Includes
 #include "malloc.h"
 
-//Definitions
+//Global variables
 
 void *original_sbrk;
 
@@ -84,8 +84,6 @@ void rand_test_free(int num_ptrs, void **ptrs, int num_calls) {
 		ptrs[index] = NULL;
 	}
 }
-
-
 
 void free_all(int num_ptrs, void **ptrs) {
 	printf("\nFreeing all %d pointers.\n", num_ptrs);
@@ -167,10 +165,7 @@ void analyze_with_prompt() {
 
 int main(int argc, char *argv[]) {   
     original_sbrk = sbrk(0);
-    printf("Original program break: %p\n", original_sbrk);
-
-    printf("Word %d/Meta size %d", WORD_SIZE, sizeof(block_meta));
-
+    printf("Original program break: %p\n\n", original_sbrk);
     /*printf("*** TEST 1 ***");
     void *p1 = malloc(103);
     void *p2 = malloc(203);
@@ -213,6 +208,8 @@ int main(int argc, char *argv[]) {
     rand_test_malloc(num_ptrs, ptrs, 1000, 10000);
     analyze_with_prompt();
     rand_test_free(num_ptrs, ptrs, 450);
+    analyze_with_prompt();
+    rand_test_malloc(num_ptrs, ptrs, 1000, 10000);
     analyze_with_prompt();
     free_all(num_ptrs, ptrs);
     analyze_with_prompt();

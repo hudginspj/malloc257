@@ -1,11 +1,10 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  File           : a1support.c
-//  Description    : This is a set of general-purpose utility functions we use
-//                  for the 257 assignment #1.
+//  File           : malloc.c
+//  Description    : Implements malloc, calloc, realloc, and free
 //
 //   Author        : Paul Hudgins
-//   Last Modified : 10/5/16
+//   Last Modified : 10/28/16
 //
 
 // Include Files
@@ -17,8 +16,11 @@
 #include "malloc.h"
 
 
+//Global variables
 
 void *global_base = NULL;
+
+//Helper functions
 
 block_meta *get_global_base() {
   return global_base;
@@ -32,7 +34,11 @@ wordcount size_to_words(size_t size) {
   return ((size-1)/WORD_SIZE)+1;
 }
 
-
+////////////////////////////////////////////////////////////////////////////////
+// Description  : Finds the previous block_meta in singly-linked list
+//
+// Inputs       : current - a pointer to a block_meta
+// Outputs      : the previous block_meta, or null if cannot be found
 block_meta *find_previous(block_meta *current) {
   if (current == global_base) {
     return NULL;
@@ -48,6 +54,11 @@ block_meta *find_previous(block_meta *current) {
   return search;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Description  : Merges a block with the subsequent block, 
+//                if the subsequent block is free
+//
+// Inputs       : block - a pointer to a block_meta
 void merge_with_next(block_meta *block) {
     if (block
         && block->notlast ) {
@@ -59,6 +70,14 @@ void merge_with_next(block_meta *block) {
     } 
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Description  : Reduces a data block to the required number of words,
+//                if possible, and creates a new free block with excess words.
+//                The new block will be merged with subsequent free blocks.
+//
+// Inputs       : old_block - the block to be split
+//              : words - the number of words needed for the block,
+//                        including metadata
 void split(block_meta *old_block, wordcount words) {
     if (old_block->words <= words || !old_block->notlast) {
         return;
@@ -74,6 +93,13 @@ void split(block_meta *old_block, wordcount words) {
     merge_with_next(new_block);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Description  : Performs best-fit search for a free block
+//
+// Inputs       : words - the number of words needed for the block,
+//                        including metadata
+// Outputs      : the smallest block of sufficient size,
+//                or the empty terminating block if no block was found
 block_meta *find_free_block(wordcount words) {
   block_meta *current = global_base;
   block_meta *best;
@@ -81,10 +107,6 @@ block_meta *find_free_block(wordcount words) {
       && !(current->free 
       && current->words >= words)) { 
     current += current->words;
-  }
-
-  if (!current->notlast) {
-    return current;
   }
 
   best = current;
@@ -100,11 +122,18 @@ block_meta *find_free_block(wordcount words) {
     current += current->words;
   }
 
-  if (best) split(best, words);
+  split(best, words);
   return best;
 }
 
-//input: size is the total words in the block, including meta
+////////////////////////////////////////////////////////////////////////////////
+// Description  : Allocates space for a new block at the top of the heap.
+//                If global_base is null, also creates an empty terminating block.
+//
+// Inputs       :  last - the empty terminating block, or null if not intialized
+//                 words - the number of words needed for the block,
+//                        including metadata
+// Outputs      :  the newly allocated block
 block_meta *request_space(block_meta* last, wordcount words) {
   if (!last) { // NULL on first request, create an (aligned) terminating block.
     last = (block_meta*) (8 * size_to_words((size_t)sbrk(0)) );
@@ -134,9 +163,12 @@ block_meta *request_space(block_meta* last, wordcount words) {
   return last;
 }
 
-// If it's the first ever call, i.e., global_base == NULL, request_space and set global_base.
-// Otherwise, if we can find a free block, use it.
-// If not, request_space.
+
+////////////////////////////////////////////////////////////////////////////////
+// Description  : Dynamically allocates heap memory
+//
+// Inputs       :  size - the number of bytes to be allocated
+// Outputs      :  a pointer to the beginning of allocated memory
 void *malloc(size_t size) {
   block_meta *block;
 
@@ -166,6 +198,10 @@ void *malloc(size_t size) {
   return(block+1);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Description  : Frees a block of heap memory for re-use
+//
+// Inputs       :  ptr - a pointer to a dynamically allocated block of memory
 void free(void *ptr) {
   if (!ptr) {
     return;
@@ -199,6 +235,12 @@ void free(void *ptr) {
   }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Description  : Dynamically allocates heap memory, and initalizes it to all zeros
+//
+// Inputs       :  size - the number of elements to be accomodated
+//                 elsize - the size of each element
+// Outputs      :  a pointer to the beginning of allocated memory
 void *calloc(size_t nelem, size_t elsize) {
   size_t size = nelem * elsize;
   void *ptr = malloc(size);
@@ -206,26 +248,33 @@ void *calloc(size_t nelem, size_t elsize) {
   return ptr;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Description  : Dynamically resizes a previously allocated block of memory
+//
+// Inputs       :  ptr - a pointer to the original block of memory
+//              :  size - the number of bytes to be allocated
+// Outputs      :  a pointer to the beginning of re-allocated memory
 void *realloc(void *ptr, size_t size) {
   if (!ptr) { 
     // NULL ptr. realloc should act like malloc.
     return malloc(size);
   }
   
-  wordcount words_needed = size_to_words(size) +1;
   block_meta* block_ptr = get_block_ptr(ptr);
-  merge_with_next(block_ptr); //TODO this could be the problem
+  merge_with_next(block_ptr);
+
+  //  Check if we can realloc in place
+  wordcount words_needed = size_to_words(size) +1;
   if (block_ptr->words >= words_needed) {
     split(block_ptr, words_needed);
     return ptr;
   }
 
-  // Need to really realloc. Malloc new space and free old space.
-  // Then copy old data to new space.
+  //  Malloc new space and free old space.
   void *new_ptr;
   new_ptr = malloc(size);
   if (!new_ptr) {
-    return NULL; // TODO: set errno on failure.
+    return NULL; 
   }
   memcpy(new_ptr, ptr, block_ptr->words * WORD_SIZE);
   free(ptr);  
