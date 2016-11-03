@@ -6,6 +6,8 @@
 
 #define DOUBLE_SWAP(a, b)  a = DOUBLE_XOR(a, b); b = DOUBLE_XOR(a, b); a = DOUBLE_XOR(a, b); 
 
+#define SWAP(a, b, t) t = a; a = b; b = t;
+
 #define MIN(a, b)  (a<b) ? a : b
 
 double start, stop, used, mf;
@@ -45,9 +47,20 @@ void multiply (double **a, double **b, double **c, int n)
   }
 
 
+void transpose(double **mat, int n) {
+  int i,j;
+  for (i = 0; i<n; i++) {
+    for (j = i+1; j<n; j++) {
+      DOUBLE_SWAP(mat[i][j], mat[j][i]);
+    }
+  }
+
+}
+
 void transpose_multiply (double **a, double **b, double **c, int n)
 {
   int i, j, k;
+  //double temp;
 
   for (i = 0; i<n; i++) {
     for (j = i+1; j<n; j++) {
@@ -59,11 +72,40 @@ void transpose_multiply (double **a, double **b, double **c, int n)
     for (j=0; j<n; j++) { 
       c[i][j] = 0;
       for (k=0; k<n; k++) {
-        c[i][j]= c[i][j] + a[i][k] * b[k][j];
+        c[i][j]= c[i][j] + a[i][k] * b[j][k];
       }
     }
   }
 }
+
+void fast_transpose_multiply (double **a, double **b, double **c, int n)
+{
+  int i, j;
+  double *ak, *bk, *astop;
+  double sum;
+
+  for (i = 0; i<n; i++) {
+    for (j = i+1; j<n; j++) {
+      DOUBLE_SWAP(b[i][j], b[j][i]);
+    }
+  }
+
+  for (i=0; i<n; i++) {
+    for (j=0; j<n; j++) { 
+      sum = 0;
+      ak = a[i];
+      bk = b[j];
+      astop = ak + n;
+      while (ak<astop) {
+        sum += *ak * *bk;
+        ak++;
+        bk++;
+      }
+      c[i][j] = sum;
+    }
+  }
+}
+
 
 void block_multiply (double **a, double **b, double **c, int n, int partitions)
 {
@@ -97,6 +139,7 @@ void block_multiply (double **a, double **b, double **c, int n, int partitions)
   }
 }
 
+
 void print_matrix(double **mat, int n) {
   int i,j;
   if (n < 10) {
@@ -108,6 +151,21 @@ void print_matrix(double **mat, int n) {
     }
   }
 
+}
+
+
+void start_time() {
+  start = ftime();
+}
+
+void stop_and_analyze(double **mat, int n) {
+  stop = ftime();
+  used = stop - start;
+  mf = (n*n*n *2.0) / used / 1000000.0;
+  //printf ("\n");
+  printf("   Elapsed time: %10.2f", used);
+  printf("   DP MFLOPS: %10.2f \n", mf);
+  print_matrix(mat, n);
 }
 
 
@@ -140,45 +198,37 @@ int main (void)
 
   for (i=0; i<n; i++) {
     for (j=0; j<n; j++) {
-      b[i][j]= i - j;
+      b[i][j]= i - (j/2) ;
     }
   }
 
   print_matrix(a, n);
   print_matrix(b, n);
 
-  printf("Normal: ");
-  start = ftime();
+  printf("  Normal: ");
+  start_time();
   multiply (a,b,c,n);
-  stop = ftime();
-  used = stop - start;
-  mf = (n*n*n *2.0) / used / 1000000.0;
-  printf ("\n");
-  printf ( "Elapsed time:   %10.2f \n", used);
-  printf ( "DP MFLOPS:       %10.2f \n", mf);
-  print_matrix(c, n);
+  stop_and_analyze(c, n);
 
-  printf("Block: ");
-  start = ftime();
+  printf("  Block (3): ");
+  start_time();
   block_multiply(a,b,c,n, 3);
-  stop = ftime();
-  used = stop - start;
-  mf = (n*n*n *2.0) / used / 1000000.0;
-  printf ("\n");
-  printf ( "Elapsed time:   %10.2f \n", used);
-  printf ( "DP MFLOPS:       %10.2f \n", mf);
-  print_matrix(c, n);
+  stop_and_analyze(c, n);
 
-  printf("Transpose: ");
-  start = ftime();
+  printf("  Transpose Multiply: ");
+  start_time();
   transpose_multiply(a,b,c,n);
-  stop = ftime();
-  used = stop - start;
-  mf = (n*n*n *2.0) / used / 1000000.0;
-  printf ("\n");
-  printf ( "Elapsed time:   %10.2f \n", used);
-  printf ( "DP MFLOPS:       %10.2f \n", mf);
-  print_matrix(c, n);
+  stop_and_analyze(c, n);
+
+  printf("  Just Transpose: ");
+  start_time();
+  transpose(b,n);
+  stop_and_analyze(b, n);
+
+  printf("  Fast Transpose: ");
+  start_time();
+  fast_transpose_multiply(a,b,c,n);
+  stop_and_analyze(c, n);
 
 
   return (0);
