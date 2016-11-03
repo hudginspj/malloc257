@@ -34,6 +34,8 @@ wordcount size_to_words(size_t size) {
   return ((size-1)/WORD_SIZE)+1;
 }
 
+//Functions
+
 ////////////////////////////////////////////////////////////////////////////////
 // Description  : Finds the previous block_meta in singly-linked list
 //
@@ -280,8 +282,3 @@ void *realloc(void *ptr, size_t size) {
   free(ptr);  
   return new_ptr;
 }
-
-
-
-
-

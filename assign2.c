@@ -1,8 +1,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  File           : assign2.c
-//  Description    : This is the main source code for for the first assignment
-//                   of CMSC257.  
+//  Description    : Contains driver and analysis functions to test malloc.c,
+//                   and a main() function which demonstrates them.
 //
 //   Author        : Paul Hudgins
 //   Last Modified : 10/28/16
@@ -25,7 +25,9 @@ void *original_sbrk;
 
 // Functions
 
-void store_gap(void *ptr, size_t size) {
+// Calculates the alignment gap of a newly allocated block,
+// and stores it in the first byte of that block.
+void store_alignment_gap(void *ptr, size_t size) {
 	size_t size_allocated = (get_block_ptr(ptr)->words - 1) * WORD_SIZE;
 	char * storage_byte = (char *) ptr;
 	*storage_byte = (char) (size_allocated - size);
@@ -42,7 +44,7 @@ void rand_test_malloc(int num_ptrs, void **ptrs, int max_size, int num_calls) {
 
 		int size = (rand()%max_size) + 1;
 		ptrs[index] = malloc(size);
-		store_gap(ptrs[index], size);
+		store_alignment_gap(ptrs[index], size);
 	}
 }
 
@@ -57,7 +59,7 @@ void rand_test_calloc(int num_ptrs, void **ptrs, int max_elements, int element_s
 
 		int elements = (rand()%max_elements) + 1;
 		ptrs[index] = calloc(elements, element_size);
-		store_gap(ptrs[index], elements * element_size);
+		store_alignment_gap(ptrs[index], elements * element_size);
 	}
 }
 
@@ -69,7 +71,7 @@ void rand_test_realloc(int num_ptrs, void **ptrs, int max_size, int num_calls) {
 		int index= rand()%num_ptrs;
 		int size = (rand()%max_size) + 1;
 		ptrs[index] = realloc(ptrs[index], size);
-		store_gap(ptrs[index], size);
+		store_alignment_gap(ptrs[index], size);
 	}
 }
 
@@ -95,13 +97,13 @@ void free_all(int num_ptrs, void **ptrs) {
 }
 
 
-void analyze( int printall) { //size_t *total_free, size_t *total_used, size_t *total_gap, int *total_blocks) {
+void analyze( int printall) {
     block_meta *block = get_global_base();
     size_t total_free = 0;
     size_t total_gap = 0;
     size_t total_used = 0;
     int total_blocks = 0;
-    while (block) {  //TODO change to notlast
+    while (block) {
         total_blocks++;
         if (printall) printf("  Blck: %3d, Loc: %p, ", total_blocks, block);
         
@@ -157,7 +159,7 @@ void analyze_with_prompt() {
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Function     : main
-// Description  : The main function for the CMSC257 assignment #1
+// Description  : The main function for the CMSC257 assignment #2
 //
 // Inputs       : argc - the number of command line parameters
 //                argv - the parameters
@@ -166,51 +168,23 @@ void analyze_with_prompt() {
 int main(int argc, char *argv[]) {   
     original_sbrk = sbrk(0);
     printf("Original program break: %p\n\n", original_sbrk);
-    /*printf("*** TEST 1 ***");
-    void *p1 = malloc(103);
-    void *p2 = malloc(203);
-    free(p1);
-    analyze(1);
-
-    printf("*** TEST 2 ***");
-    p1 = malloc(15);
-    analyze(1);
-
-    printf("*** TEST 2 ***");
-    void *p3 = calloc(20, sizeof(int));
-    analyze(1);
-
-    printf("*** TEST 4 ***");
-    p2 = realloc(p2, 100);
-    analyze(1);
-
-    printf("*** TEST 4 ***");
-    p2 = realloc(p2, 300);
-    analyze(1);
-
-    printf()
-    free(p2);
-    analyze(1);*/
 
     int num_ptrs = 500;
 
     printf("Allocating an array to store pointers for subsequent tests:\n");
     void **ptrs = (void**) calloc(num_ptrs+1, sizeof(void*));
-    //*ptrs = 0;
     ptrs++;
-    analyze_with_prompt();
-
+    analyze(1);
 
     rand_test_malloc(20, ptrs, 1000, 500);
     analyze_with_prompt();
-    //rand_test_free(num_ptrs, ptrs, 100);
-    //analyze_with_prompt();
     rand_test_malloc(num_ptrs, ptrs, 1000, 10000);
     analyze_with_prompt();
     rand_test_free(num_ptrs, ptrs, 450);
     analyze_with_prompt();
     rand_test_malloc(num_ptrs, ptrs, 1000, 10000);
     analyze_with_prompt();
+
     free_all(num_ptrs, ptrs);
     analyze_with_prompt();
 
@@ -218,36 +192,22 @@ int main(int argc, char *argv[]) {
     analyze_with_prompt();
     rand_test_calloc(num_ptrs, ptrs, 24, 1, 10000);
     analyze_with_prompt();
-    //rand_test_calloc(num_ptrs, ptrs, 125, 8, 10000);
-    //analyze_with_prompt();
-    
+
     free_all(num_ptrs, ptrs);
     analyze_with_prompt();
 
-    
     rand_test_realloc(50, ptrs, 1000, 1000);
     analyze_with_prompt();
     rand_test_realloc(num_ptrs, ptrs, 1000, 10000);
     analyze_with_prompt();
-    //rand_test_realloc(num_ptrs, ptrs, 1000, 10000);
-    //analyze_with_prompt();
-     
 	
     free_all(num_ptrs, ptrs);
     analyze_with_prompt();
-    //printf("      sbrk(0)-original: %ld\n", (sbrk(0) - original_sbrk));
 
     printf("\nFreeing pointer array.\n");
     free(ptrs-1);
     analyze(1);
-    //printf("      sbrk(0)-original: %ld\n", (sbrk(0) - original_sbrk));  
-
-    
-
-
-
 
     // Return successfully
     return(0);
 }
-//  cd /cygdrive/c/users/pjhud/bash/a2

@@ -1,6 +1,5 @@
 #
-# CMSC257 - Utility Library 
-# Code for the CMSC257 Projects
+# Makefile for assign2
 #
 
 # Make environment

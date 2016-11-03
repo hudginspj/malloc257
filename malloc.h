@@ -3,16 +3,15 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  File          : a1support.h
-//  Description   : This is a set of general-purpose utility functions we use
-//                  for the 257 assignment #2.
+//  File           : malloc.h
+//  Description    : Implements malloc, calloc, realloc, and free
 //
-//  Author   : Paul Hudgins
-//  Last Modified  : 10/28/16
-
+//   Author        : Paul Hudgins
+//   Last Modified : 10/28/16
 //
-// Functional Prototypes
 
+
+// Definitions
 
 #define WORD_SIZE sizeof(long) 
 
@@ -25,6 +24,8 @@ typedef struct {
   char notlast : 1;
 } block_meta;
 
+
+// Functional Prototypes
 
 block_meta *get_block_ptr(void *ptr) ;
 
