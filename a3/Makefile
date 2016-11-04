@@ -20,7 +20,7 @@ all : main multi
 main : main.c
 	$(CC) $(CFLAGS) $< -o $@ 
 multi : multi_block.c
-	$(CC) $(CFLAGS) $< -o $@ -lrt
+	$(CC) $(CFLAGS) $< -o $@ -lrt -pthread
 
 #assign2 : $(OBJECT_FILES)
 #	$(CC) $(LINKARGS) $(OBJECT_FILES) -o $@ $(LIBS)

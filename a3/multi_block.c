@@ -7,19 +7,22 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <fcntl.h>
+#include <semaphore.h>
 
 #define DOUBLE_XOR(a, b) (double) ((long long) a ^ (long long) b)
 
 #define DOUBLE_SWAP(a, b)  a = DOUBLE_XOR(a, b); b = DOUBLE_XOR(a, b); a = DOUBLE_XOR(a, b); 
 
-#define SWAP(a, b, t) t = a; a = b; b = t;
+//#define SWAP(a, b, t) t = a; a = b; b = t;
 
 #define MIN(a, b)  (a<b) ? a : b
+
+
+sem_t *sem;
 
 double start, stop, used, mf;
 
 double ftime(void);
-void multiply (double **a, double **b, double **c, int n);
 
 double ftime (void)
 {
@@ -27,7 +30,7 @@ double ftime (void)
     
     times ( &t );
  
-    return (t.tms_utime + t.tms_stime) / 100.0;
+    return (t.tms_cutime + t.tms_cstime) / 100.0;
 }
 
 void linear_transpose_multiply (double *a, double *b, double *c, int n)
@@ -99,6 +102,7 @@ void lin_partition_multiply (double *a, double *b, double *c,
 void fork_part_multiply (double *a, double *b, double *c, 
   int n, int partitions)
 {
+  usleep ( 10000 );
   int i, j, k, i0, j0, k0;
   int block_size = ((n-1)/partitions)+1;
   int stop_i, stop_j, stop_k;
@@ -119,7 +123,7 @@ void fork_part_multiply (double *a, double *b, double *c,
             fprintf(stderr,"fork failed at %d\n",i);
             exit(1);
         } else if ( pid > 0 ) {
-            printf("parent: new child is %d\n",pid);
+            //printf("parent: new child is %d\n",pid);
 
         } else {
           usleep ( 1000 );
@@ -131,7 +135,9 @@ void fork_part_multiply (double *a, double *b, double *c,
             for (j=j0*block_size; j<stop_j; j++) { 
               stop_k = MIN(n, (k0+1)*block_size);
               for (k=k0*block_size; k<stop_k; k++) {
+                sem_wait ( sem );
                 c[i*n + j]= c[i*n + j] + a[i*n + k] * b[k*n + j];
+                sem_post ( sem );
               }
             }
           }
@@ -164,6 +170,7 @@ void print_linear_matrix(double *mat, int n) {
 
 void start_time() {
   start = ftime();
+  //printf(start);
 }
 
 void stop_and_analyze(double *mat, int n) {
@@ -199,9 +206,16 @@ int main (void)
       fprintf(stderr,"Could not map pjh_memory\n");
       exit(1);
   }
-  
   close ( shmfd );
   shm_unlink ( "/pjh_memory" );
+
+  sem = sem_open ( "pjh_sem", O_CREAT, 0666, 1 );
+  if ( sem == NULL ) {
+    fprintf(stderr,"Could not create pjh semaphore\n");
+      exit(1);
+  }
+  sem_unlink ( "pjh_sem" );
+
 
   a = mem;
   b = a + (n*n);
@@ -223,14 +237,6 @@ int main (void)
 
   print_linear_matrix(a, n);
   print_linear_matrix(b, n);
-
-  //printf("  Linear Partition Multiply: ");
-  //start_time();
-  //lin_partition_multiply(a,b,c, n, 3);
-  //stop_and_analyze(c, n);
-  //for (i=0; i<n*n; i++) {
-  //  c[i] = 0;
-  //}
 
   printf("  Fork Partition Multiply: ");
   start_time();
