@@ -15,10 +15,12 @@ OBJECT_FILES=	assign2.o \
 				malloc.o
 
 # Productions
-all : main
+all : main multi
 
 main : main.c
-	$(CC) $(CFLAGS) main.c -o $@ 
+	$(CC) $(CFLAGS) $< -o $@ 
+multi : multi_block.c
+	$(CC) $(CFLAGS) $< -o $@ -lrt
 
 #assign2 : $(OBJECT_FILES)
 #	$(CC) $(LINKARGS) $(OBJECT_FILES) -o $@ $(LIBS)
