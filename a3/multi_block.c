@@ -1,4 +1,6 @@
-#include <sys/times.h>
+//#include <sys/times.h>
+#include <sys/time.h>
+//#include <time.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -26,12 +28,23 @@ double ftime(void);
 
 double ftime (void)
 {
-    struct tms t;
-    
-    times ( &t );
- 
-    return (t.tms_cutime + t.tms_cstime) / 100.0;
+    //struct tms t;
+    //times ( &t );
+    //return (t.tms_utime + t.tms_stime +t.tms_cutime + t.tms_cstime) / 100.0;
+
+    struct timeval t;
+    gettimeofday(&t, NULL);
+    printf("secs: %ld, usecs: %ld, %f\n", t.tv_sec, t.tv_usec, (double)t.tv_usec/1000000.0);
+    return  (double) t.tv_sec + (double)t.tv_usec/1000000.0;
+  //clock_t t;
+  //t = clock();
+  //printf("Time: %f\n", (float)t/CLOCKS_PER_SEC);
+  //return( (float)t/ CLOCKS_PER_SEC) ;
 }
+
+
+
+
 
 void linear_transpose_multiply (double *a, double *b, double *c, int n)
 {
@@ -106,7 +119,9 @@ void fork_part_multiply (double *a, double *b, double *c,
   int i, j, k, i0, j0, k0;
   int block_size = ((n-1)/partitions)+1;
   int stop_i, stop_j, stop_k;
+
   int pid;
+  double sum;
 
   for (i=0; i<n; i++) {
     for (j=0; j<n; j++) { 
@@ -134,11 +149,13 @@ void fork_part_multiply (double *a, double *b, double *c,
             stop_j = MIN(n, (j0+1)*block_size);
             for (j=j0*block_size; j<stop_j; j++) { 
               stop_k = MIN(n, (k0+1)*block_size);
+              sum = 0;
               for (k=k0*block_size; k<stop_k; k++) {
-                sem_wait ( sem );
-                c[i*n + j]= c[i*n + j] + a[i*n + k] * b[k*n + j];
-                sem_post ( sem );
+                sum += a[i*n + k] * b[k*n + j];
               }
+              sem_wait ( sem );
+              c[i*n + j] += sum;
+              sem_post ( sem );
             }
           }
           exit(0);
@@ -208,7 +225,8 @@ int main (void)
   }
   close ( shmfd );
   shm_unlink ( "/pjh_memory" );
-
+  
+  //for (i = 0; i<9; i++)
   sem = sem_open ( "pjh_sem", O_CREAT, 0666, 1 );
   if ( sem == NULL ) {
     fprintf(stderr,"Could not create pjh semaphore\n");
