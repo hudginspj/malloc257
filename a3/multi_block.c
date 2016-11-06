@@ -19,8 +19,10 @@
 
 #define MIN(a, b)  (a<b) ? a : b
 
+#define PARTITIONS 3
 
 sem_t *sem;
+sem_t* sems[9];
 
 double start, stop, used, mf;
 
@@ -34,7 +36,7 @@ double ftime (void)
 
     struct timeval t;
     gettimeofday(&t, NULL);
-    printf("secs: %ld, usecs: %ld, %f\n", t.tv_sec, t.tv_usec, (double)t.tv_usec/1000000.0);
+    //printf("secs: %ld, usecs: %ld, %f\n", t.tv_sec, t.tv_usec, (double)t.tv_usec/1000000.0);
     return  (double) t.tv_sec + (double)t.tv_usec/1000000.0;
   //clock_t t;
   //t = clock();
@@ -170,6 +172,67 @@ void fork_part_multiply (double *a, double *b, double *c,
 
 }
 
+void sem_arr_part_multiply (double *a, double *b, double *c, 
+  int n, int partitions)
+{
+  usleep ( 10000 );
+  int i, j, k, i0, j0, k0;
+  int block_size = ((n-1)/partitions)+1;
+  int stop_i, stop_j, stop_k;
+
+  int pid;
+  double sum;
+
+  for (i=0; i<n; i++) {
+    for (j=0; j<n; j++) { 
+      c[i*n + j] = 0;
+    }
+  }
+
+
+  for (i0=0; i0<partitions; i0++) {
+    for (j0=0; j0<partitions; j0++) { 
+      sem_t *output_block_sem = sems[i0 * partitions + j0];
+
+      for (k0=0; k0<partitions; k0++) {
+        pid = fork();
+        if ( pid < 0 ) {
+            fprintf(stderr,"fork failed at %d\n",i);
+            exit(1);
+        } else if ( pid > 0 ) {
+            //printf("parent: new child is %d\n",pid);
+
+        } else {
+          usleep ( 1000 );
+          printf("child %d/%d/%d, parent is %d\n",i0,j0,k0, getppid());
+          //child_transpose_multiply(a, b, c, offset, partition_size, n);
+          stop_i = MIN(n, (i0+1)*block_size);
+          for (i=i0*block_size; i<stop_i; i++) {
+            stop_j = MIN(n, (j0+1)*block_size);
+            for (j=j0*block_size; j<stop_j; j++) { 
+              stop_k = MIN(n, (k0+1)*block_size);
+              sum = 0;
+              for (k=k0*block_size; k<stop_k; k++) {
+                sum += a[i*n + k] * b[k*n + j];
+              }
+              sem_wait ( output_block_sem );
+              //printf("Accessed sem %d\n", i0*3 + j0);
+              c[i*n + j] += sum;
+              sem_post ( output_block_sem );
+            }
+          }
+          exit(0);
+        }
+
+        
+      }
+    }
+  }
+
+  for ( i = 0; i < (partitions * partitions * partitions); i++ ) wait(NULL);
+
+}
+
 
 void print_linear_matrix(double *mat, int n) {
   int i,j;
@@ -226,7 +289,23 @@ int main (void)
   close ( shmfd );
   shm_unlink ( "/pjh_memory" );
   
-  //for (i = 0; i<9; i++)
+
+  
+  char sem_name[10] = "pjh_sem_0";
+  //for (counter = '0'; counter<'9'; counter++) {
+  for (i = 0; i < PARTITIONS*PARTITIONS; i++) {
+    sem_name[8] = sem_name[8] + 1;
+    sems[i] = sem_open ( sem_name, O_CREAT, 0666, 1 );
+    if ( sems[i] == NULL ) {
+      fprintf(stderr,"Could not create %s\n", sem_name);
+      exit(1);
+    }
+    sem_unlink ( sem_name );
+    printf("Created %s\n", sem_name);
+  }
+
+
+
   sem = sem_open ( "pjh_sem", O_CREAT, 0666, 1 );
   if ( sem == NULL ) {
     fprintf(stderr,"Could not create pjh semaphore\n");
@@ -256,9 +335,14 @@ int main (void)
   print_linear_matrix(a, n);
   print_linear_matrix(b, n);
 
-  printf("  Fork Partition Multiply: ");
+  //printf("  Fork Partition Multiply: ");
+  //start_time();
+  //fork_part_multiply(a,b,c, n, PARTITIONS);
+  //stop_and_analyze(c, n);
+
+  printf("  Semaphore Array Multiply: ");
   start_time();
-  fork_part_multiply(a,b,c, n, 3);
+  sem_arr_part_multiply(a,b,c, n, PARTITIONS);
   stop_and_analyze(c, n);
 
   
