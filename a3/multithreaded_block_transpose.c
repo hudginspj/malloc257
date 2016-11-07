@@ -10,19 +10,27 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <semaphore.h>
+#include <pthread.h>
 
 #define DOUBLE_XOR(a, b) (double) ((long long) a ^ (long long) b)
 
 #define DOUBLE_SWAP(a, b)  a = DOUBLE_XOR(a, b); b = DOUBLE_XOR(a, b); a = DOUBLE_XOR(a, b); 
 
-//#define SWAP(a, b, t) t = a; a = b; b = t;
-
 #define MIN(a, b)  (a<b) ? a : b
 
-#define PARTITIONS 3
+#define PARTITIONS 8
 
 sem_t *sem;
 sem_t* sems[PARTITIONS*PARTITIONS];
+
+typedef struct {
+  double *a; double *b; double *c;
+  int i0; int j0;
+  int n;
+} THREAD_INPUT;
+
+pthread_t threads[PARTITIONS][PARTITIONS];
+THREAD_INPUT tis[PARTITIONS][PARTITIONS];
 
 double start, stop, used, mf;
 
@@ -38,10 +46,6 @@ double ftime (void)
     gettimeofday(&t, NULL);
     //printf("secs: %ld, usecs: %ld, %f\n", t.tv_sec, t.tv_usec, (double)t.tv_usec/1000000.0);
     return  (double) t.tv_sec + (double)t.tv_usec/1000000.0;
-  //clock_t t;
-  //t = clock();
-  //printf("Time: %f\n", (float)t/CLOCKS_PER_SEC);
-  //return( (float)t/ CLOCKS_PER_SEC) ;
 }
 
 
@@ -157,7 +161,7 @@ void multiply_block(double *a, double *b, double *c,
   int i0, int j0, int k0,
   int n, int partitions, int block_size,
   sem_t *output_block_sem) {
-  int i, j, k;
+  int i, j;
   double *ak, *bk, *a_stop, *c_output;
   double sum;
 
@@ -171,16 +175,10 @@ void multiply_block(double *a, double *b, double *c,
                 sum += *ak * *bk;
                 ak++;
                 bk++;
-                //printf("a[%d] * b[%d]\n",
-                 // ((i0*block_size) + i)*n + (k0*block_size + k),
-                 // ((k0*block_size) + j)*n + (j0*block_size + k));
-                //sum += a[((i0*block_size) + i)*n + (k0*block_size + k)] 
-                //     * b[((k0*block_size) + j)*n + (j0*block_size + k)];
               }
               c_output = c +((i0*block_size) + i)*n + ((j0*block_size) + j);
               sem_wait ( output_block_sem );
               *c_output += sum;
-              //c[((i0*block_size) + i)*n + ((j0*block_size) + j)] += sum;
               sem_post ( output_block_sem );
             }
           }
@@ -192,13 +190,10 @@ void block_transpose_multiply (double *a, double *b, double *c,
   int n, int partitions)
 {
   usleep ( 10000 );
-  //int i, j, k;
   int i0, j0, k0;
   int block_size = ((n-1)/partitions)+1;
-  //int stop_k; //stop_i, stop_j,
 
   int pid;
-  //double sum;
 
   for (i0=0; i0<n; i0++) {
     for (j0=0; j0<n; j0++) { 
@@ -214,10 +209,6 @@ void block_transpose_multiply (double *a, double *b, double *c,
   for (i0=0; i0<partitions; i0++) {
     for (j0=0; j0<partitions; j0++) { 
       sem_t *output_block_sem = sems[i0 * partitions + j0];
-
-      //block_transpose(i0, j0, MIN(block_size, (n-i0)), MIN(block_size, (n-j0)));
-      //block_transpose(b, i0*block_size, j0*block_size, n, block_size);
-
 
       for (k0=0; k0<partitions; k0++) {
         pid = fork();
@@ -243,11 +234,195 @@ void block_transpose_multiply (double *a, double *b, double *c,
   for ( i0 = 0; i0 < (partitions * partitions * partitions); i0++ ) wait(NULL);
 }
 
+//////////////////////////////////////////////////////////////////////////////////
+
+/////////////////////////////////////////////////////////////////////////////////
+
+
+void nosem_multiply_block(double *a, double *b, double *c,
+  int i0, int j0, int k0,
+  int n, int partitions, int block_size) {
+  int i, j;
+  double *ak, *bk, *a_stop, *c_output;
+  double sum;
+
+  for (i=0; i<block_size; i++) {
+      for (j=0; j<block_size; j++) { 
+              sum = 0;
+              ak = a + ((i0*block_size) + i)*n + (k0*block_size);
+              a_stop = a + ((i0*block_size) + i)*n + (k0*block_size) + block_size;
+              bk = b + ((k0*block_size) + j)*n + (j0*block_size);
+              while (ak<a_stop) {
+                sum += *ak * *bk;
+                ak++;
+                bk++;
+              }
+              c_output = c +((i0*block_size) + i)*n + ((j0*block_size) + j);
+              *c_output += sum;
+            }
+          }
+
+}
+
+
+void nosem_block_transpose_multiply (double *a, double *b, double *c, 
+  int n, int partitions)
+{
+  usleep ( 10000 );
+  int i0, j0, k0;
+  int block_size = ((n-1)/partitions)+1;
+
+  int pid;
+
+  for (i0=0; i0<n; i0++) {
+    for (j0=0; j0<n; j0++) { 
+      c[i0*n + j0] = 0;
+    }
+  }
+  for (i0=0; i0<partitions; i0++) {
+    for (j0=0; j0<partitions; j0++) { 
+      block_transpose(b, i0*block_size, j0*block_size, n, block_size);
+    }
+  }
+  
+  for (i0=0; i0<partitions; i0++) {
+    for (j0=0; j0<partitions; j0++) { 
+
+      
+        pid = fork();
+        if ( pid < 0 ) {
+            fprintf(stderr,"fork failed at %d\n",i0);
+            exit(1);
+        } else if ( pid > 0 ) {
+            //printf("parent: new child is %d\n",pid);
+
+        } else {
+          usleep ( 1000 );
+          //printf("child %d/%d/%d, parent is %d\n",i0,j0,k0, getppid());
+
+          for (k0=0; k0<partitions; k0++) {
+            nosem_multiply_block(a, b, c,
+              i0, j0, k0,
+              n,  partitions, block_size);
+          }
+          exit(0);
+        }
+        
+      
+    }
+  }
+  for ( i0 = 0; i0 < (partitions * partitions); i0++ ) wait(NULL);
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+void * thread_multiply_blocks(void * arg) {
+
+  THREAD_INPUT *ti = (THREAD_INPUT *) arg;
+  //printf("TC%d/%d ", ti->i0, ti->j0);
+  int i, j, k0;
+  int block_size = ti->n/PARTITIONS;
+  double *ak, *bk, *a_stop, *c_output;
+  double sum;
+  for (k0=0; k0<PARTITIONS; k0++) {
+    for (i=0; i<block_size; i++) {
+      for (j=0; j<block_size; j++) { 
+              sum = 0;
+              ak = ti->a + ((ti->i0*block_size) + i)*ti->n + (k0*block_size);
+              a_stop = ti->a + ((ti->i0*block_size) + i)*ti->n + (k0*block_size) + block_size;
+              bk = ti->b + ((k0*block_size) + j)*ti->n + (ti->j0*block_size);
+              while (ak<a_stop) {
+                sum += *ak * *bk;
+                ak++;
+                bk++;
+              }
+              c_output = ti->c +((ti->i0*block_size) + i)*ti->n 
+                         + ((ti->j0*block_size) + j);
+              *c_output += sum;
+      }
+    }
+  }
+  printf("X");
+  usleep(10000);
+  pthread_exit(NULL);
+}
+
+
+
+void threaded_transpose_multiply (double *a, double *b, double *c, 
+  int n)
+{
+  usleep ( 10000 );
+  int i0, j0;
+  int block_size = n/PARTITIONS;
+  
+
+  int pid;
+
+  for (i0=0; i0<n; i0++) {
+    for (j0=0; j0<n; j0++) { 
+      c[i0*n + j0] = 0;
+    }
+  }
+  for (i0=0; i0<PARTITIONS; i0++) {
+    for (j0=0; j0<PARTITIONS; j0++) { 
+      block_transpose(b, i0*block_size, j0*block_size, n, block_size);
+    }
+  }
+  
+  for (i0=0; i0<PARTITIONS; i0++) {
+        pid = fork();
+        if ( pid < 0 ) {
+            fprintf(stderr,"fork failed at %d\n",i0);
+            exit(1);
+        } else if ( pid > 0 ) {
+            //printf("parent: new child is %d\n",pid);
+
+        } else {
+          usleep ( 1000 );
+          //printf("child %d/%d/%d, parent is %d\n",i0,j0, getppid());
+          
+          for (j0=0; j0<PARTITIONS; j0++) {
+            THREAD_INPUT ti =  {a, b, c,  i0, j0, n};
+            tis[0][0] = ti;
+            //tis[i0][j0] = (THREAD_INPUT) {a, b, c,  i0, j0, n};
+            tis[i0][j0].a = a;
+            tis[i0][j0].b = b;
+            tis[i0][j0].c = c;
+            tis[i0][j0].i0 = i0;
+            tis[i0][j0].j0 = j0;
+            tis[i0][j0].n = n;
+            //printf("test");
+            //printf("should be %d", (tis[i0][j0])->i0);
+            pthread_create(&threads[i0][j0], NULL, thread_multiply_blocks, (void *) &tis[i0][j0]);
+          }
+          for (j0=0; j0<PARTITIONS; j0++) {
+            //pthread_join(threads[i0][j0], NULL);
+          }
+          exit(0);
+        
+        
+      }
+    
+  }
+  for ( i0 = 0; i0 < (PARTITIONS); i0++ ) wait(NULL);
+}
+
 
 
 void print_linear_matrix(double *mat, int n) {
   int i,j;
-  if (n <= 10) {
+  if (n <= 18) {
     for (i=0; i<n; i++) {
       for (j=0; j<n; j++) {
         printf("%.1f ", *mat);
@@ -358,74 +533,34 @@ int main (void)
   linear_transpose_multiply(a,b,c_check, n);
   stop_and_analyze(c_check, n); 
 
-/*8
-
-  block_transpose(b, 0, 0, n, 2);
-  block_transpose(b, 0, 2, n, 2);
-  block_transpose(b, 0, 4, n, 2);
-  block_transpose(b, 2, 0, n, 2);
-  block_transpose(b, 2, 2, n, 2);
-  block_transpose(b, 2, 4, n, 2);
-  block_transpose(b, 4, 0, n, 2);
-  block_transpose(b, 4, 2, n, 2);
-  block_transpose(b, 4, 4, n, 2);
-
-  printf("  MATRIX B: \n");
-  print_linear_matrix(b, n);
-
-  multiply_block(a,b,c,  0,2,0, n, PARTITIONS, 2, sem);
-  multiply_block(a,b,c,  0,2,1, n, PARTITIONS, 2, sem);
-  multiply_block(a,b,c,  0,2,2, n, PARTITIONS, 2, sem);
-  //printf("Next block\n");
-  //multiply_block(a,b,c,  1,1,0, n, PARTITIONS, 2, sem);
+  //printf("  Sem Array Multiply: \n");
+  //start_time();
+  //sem_arr_part_multiply(a,b,c, n, PARTITIONS);
+  //stop_and_analyze(c, n);
 
 
-  printf("  MATRIX C: \n");
-  print_linear_matrix(c, n);*/
-
-  /*int i0, k0, j0, block_size=2;
-  for (i0=0; i0<PARTITIONS; i0++) {
-    for (j0=0; j0<PARTITIONS; j0++) { 
-      block_transpose(b, i0*block_size, j0*block_size, n, block_size);
-    }
-  }
-
-  //int i0, k0, j0, block_size=2;
-  for (i0=0; i0<PARTITIONS; i0++) {
-    for (j0=0; j0<PARTITIONS; j0++) { 
-      //block_transpose(b, i0*block_size, j0*block_size, n, block_size);
-      for (k0=0; k0<PARTITIONS; k0++) {
-          multiply_block(a, b, c,
-              i0, j0, k0,
-              n,  PARTITIONS, block_size,
-              sem);
-      }
-    }
-  }
-
-  printf("  MATRIX C: \n");
-  print_linear_matrix(c, n);*/
-
-  printf("  Sem Array Multiply3: \n");
-  start_time();
-  sem_arr_part_multiply(a,b,c, n, PARTITIONS);
-  stop_and_analyze(c, n);
-
-
-  printf("  Block Transpose Multiply3: \n");
+  printf("  Nosem Block Transpose Multiply: \n");
   start_time();
   block_transpose_multiply(a,b,c, n, PARTITIONS);
   stop_and_analyze(c, n);
 
-  printf("  MATRIX B: \n");
-  print_linear_matrix(b, n);
-  
 
+  //printf("  Threaded Multiply: \n");
+  //printf("01234567890123456789012345678901234567890123456789\n");
+  //start_time();
+  //threaded_multiply(a,b,c, n);
+  //stop_and_analyze(c, n);
+
+  //printf("  MATRIX B: \n");
+  //print_linear_matrix(b, n);
+  
+  usleep(1000);
+  j = 0;
   for (i = 0; i < n*n; i++) {
-    j = 0;
     if (c[i] != c_check[i]){
-      printf("Check failed at i = %d\n", i);
       j++;
+      printf("j = %d", j);
+      printf("Check failed at i = %d\n", i);
     }
   }
   printf("(%d) checks failed.\n", j);

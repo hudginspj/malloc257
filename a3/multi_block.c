@@ -19,10 +19,11 @@
 
 #define MIN(a, b)  (a<b) ? a : b
 
-#define PARTITIONS 3
+#define PARTITIONS 8
 
 sem_t *sem;
 sem_t* sems[9];
+sem_t* sem_arr;
 
 double start, stop, used, mf;
 
@@ -234,6 +235,66 @@ void sem_arr_part_multiply (double *a, double *b, double *c,
 }
 
 
+void million_sems_multiply (double *a, double *b, double *c, 
+  int n, int partitions)
+{
+  usleep ( 10000 );
+  int i, j, k, i0, j0, k0;
+  int block_size = ((n-1)/partitions)+1;
+  int stop_i, stop_j, stop_k;
+
+  int pid;
+  double sum;
+
+  for (i=0; i<n; i++) {
+    for (j=0; j<n; j++) { 
+      c[i*n + j] = 0;
+    }
+  }
+
+
+  for (i0=0; i0<partitions; i0++) {
+    for (j0=0; j0<partitions; j0++) { 
+      //sem_t *output_block_sem = sems[i0 * partitions + j0];
+
+      for (k0=0; k0<partitions; k0++) {
+        pid = fork();
+        if ( pid < 0 ) {
+            fprintf(stderr,"fork failed at %d\n",i);
+            exit(1);
+        } else if ( pid > 0 ) {
+            //printf("parent: new child is %d\n",pid);
+
+        } else {
+          usleep ( 1000 );
+          //printf("child %d/%d/%d, parent is %d\n",i0,j0,k0, getppid());
+          stop_i = MIN(n, (i0+1)*block_size);
+          for (i=i0*block_size; i<stop_i; i++) {
+            stop_j = MIN(n, (j0+1)*block_size);
+            for (j=j0*block_size; j<stop_j; j++) { 
+              stop_k = MIN(n, (k0+1)*block_size);
+              sum = 0;
+              for (k=k0*block_size; k<stop_k; k++) {
+                sum += a[i*n + k] * b[k*n + j];
+              }
+              sem_wait ( &sem_arr[i*n + j] );
+              c[i*n + j] += sum;
+              sem_post ( &sem_arr[i*n + j] );
+            }
+          }
+          exit(0);
+        }
+
+        
+      }
+    }
+  }
+
+  for ( i = 0; i < (partitions * partitions * partitions); i++ ) wait(NULL);
+
+}
+
+
 void print_linear_matrix(double *mat, int n) {
   int i,j;
   if (n <= 10) {
@@ -288,7 +349,31 @@ int main (void)
   }
   close ( shmfd );
   shm_unlink ( "/pjh_memory" );
+
+
+
+
+  shmfd = shm_open ( "/pjh_sems", O_RDWR | O_CREAT, 0666 );
+  if ( shmfd < 0 ) {
+      fprintf(stderr,"Could not create pjh_sems\n");
+      exit(1);
+  }
+  ftruncate ( shmfd, n*n*sizeof(sem_t) );
+  sem_arr = (sem_t *) mmap ( NULL, n*n*sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED, shmfd, 0 );
+  if ( mem == NULL ) {
+      fprintf(stderr,"Could not map pjh_sems\n");
+      exit(1);
+  }
+  close ( shmfd );
+  shm_unlink ( "/pjh_sems" );
   
+  for (i = 0; i < n*n; i++) {
+    j = sem_init( &sem_arr[i], 1, 1 );
+    if ( j != 0 ) {
+      fprintf(stderr,"Could not init semaphore\n");
+        exit(1);
+    }
+  }
 
   
   char sem_name[10] = "pjh_sem_0";
@@ -340,13 +425,18 @@ int main (void)
   //fork_part_multiply(a,b,c, n, PARTITIONS);
   //stop_and_analyze(c, n);
 
-  printf("  Semaphore Array Multiply: ");
+  //printf("  Semaphore Array Multiply: ");
+  //start_time();
+  //sem_arr_part_multiply(a,b,c, n, PARTITIONS);
+  //stop_and_analyze(c, n);
+
+  printf(" Million Semaphore Multiply: \n");
   start_time();
-  sem_arr_part_multiply(a,b,c, n, PARTITIONS);
+  million_sems_multiply(a,b,c, n, PARTITIONS);
   stop_and_analyze(c, n);
 
   
-  printf("  Fast Transpose Multiply: ");
+  printf("  Fast Transpose Multiply: \n");
   start_time();
   linear_transpose_multiply(a,b,c_check, n);
   stop_and_analyze(c_check, n);
@@ -359,6 +449,15 @@ int main (void)
     }
   }
   printf("(%d) checks failed.\n", j);
+
+
+  for (i = 0; i < n*n; i++) {
+    j = sem_destroy( &sem_arr[i]);
+    if ( j != 0 ) {
+      fprintf(stderr,"Could not destroy semaphore\n");
+        exit(1);
+    }
+  }
 
   return (0);
 }
