@@ -115,7 +115,7 @@ void sem_arr_part_multiply (double *a, double *b, double *c,
 
         } else {
           usleep ( 1000 );
-          printf("child %d/%d/%d, parent is %d\n",i0,j0,k0, getppid());
+          //printf("child %d/%d/%d, parent is %d\n",i0,j0,k0, getppid());
           //child_transpose_multiply(a, b, c, offset, partition_size, n);
           stop_i = MIN(n, (i0+1)*block_size);
           for (i=i0*block_size; i<stop_i; i++) {
@@ -158,20 +158,29 @@ void multiply_block(double *a, double *b, double *c,
   int n, int partitions, int block_size,
   sem_t *output_block_sem) {
   int i, j, k;
+  double *ak, *bk, *a_stop, *c_output;
   double sum;
 
   for (i=0; i<block_size; i++) {
       for (j=0; j<block_size; j++) { 
               sum = 0;
-              for (k=0; k<block_size; k++) {
+              ak = a + ((i0*block_size) + i)*n + (k0*block_size);
+              a_stop = a + ((i0*block_size) + i)*n + (k0*block_size) + block_size;
+              bk = b + ((k0*block_size) + j)*n + (j0*block_size);
+              while (ak<a_stop) {
+                sum += *ak * *bk;
+                ak++;
+                bk++;
                 //printf("a[%d] * b[%d]\n",
                  // ((i0*block_size) + i)*n + (k0*block_size + k),
                  // ((k0*block_size) + j)*n + (j0*block_size + k));
-                sum += a[((i0*block_size) + i)*n + (k0*block_size + k)] 
-                     * b[((k0*block_size) + j)*n + (j0*block_size + k)];
+                //sum += a[((i0*block_size) + i)*n + (k0*block_size + k)] 
+                //     * b[((k0*block_size) + j)*n + (j0*block_size + k)];
               }
+              c_output = c +((i0*block_size) + i)*n + ((j0*block_size) + j);
               sem_wait ( output_block_sem );
-              c[((i0*block_size) + i)*n + ((j0*block_size) + j)] += sum;
+              *c_output += sum;
+              //c[((i0*block_size) + i)*n + ((j0*block_size) + j)] += sum;
               sem_post ( output_block_sem );
             }
           }
@@ -225,26 +234,6 @@ void block_transpose_multiply (double *a, double *b, double *c,
               i0, j0, k0,
               n,  partitions, block_size,
               output_block_sem);
-          /*//child_transpose_multiply(a, b, c, offset, partition_size, n);
-          //stop_i = MIN(n, (i0+1)*block_size);
-          //stop_i = MIN(block_size, (n-i0));
-          for (i=0; i<block_size; i++) {
-            //stop_j = MIN(n, (j0+1)*block_size);
-            //stop_j = MIN(block_size, (n-j0));
-            for (j=0; j<block_size; j++) { 
-              //stop_k = MIN(n, (k0+1)*block_size);
-              sum = 0;
-              //for (k=k0*block_size; k<stop_k; k++) {
-              for (k=0; k<block_size; k++) {
-
-                sum += a[((i0*block_size) + i)*n + (k0*block_size + k)] 
-                     * b[((k0*block_size) + j)*n + (j0*block_size + k)];
-              }
-              sem_wait ( output_block_sem );
-              c[((i0*block_size) + i)*n + ((j0*block_size) + j)] += sum;
-              sem_post ( output_block_sem );
-            }
-          }*/
           exit(0);
         }
         
@@ -416,6 +405,11 @@ int main (void)
 
   printf("  MATRIX C: \n");
   print_linear_matrix(c, n);*/
+
+  printf("  Sem Array Multiply3: \n");
+  start_time();
+  sem_arr_part_multiply(a,b,c, n, PARTITIONS);
+  stop_and_analyze(c, n);
 
 
   printf("  Block Transpose Multiply3: \n");
