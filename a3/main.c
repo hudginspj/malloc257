@@ -201,16 +201,24 @@ void stop_and_analyze(double **mat, int n) {
 
 
 
-int main (void)
+int main (int argc, char **argv)
 {
   int i, j, n, block_size;
   double **a, **b, **c;
 
 
-  printf ( "Enter the value of n: ");
-  scanf ( "%d", &n);
-
-  //print_matrix(m,2);
+  //printf ( "Enter the value of n: ");
+  //scanf ( "%d", &n);
+  if (argc<2) exit(0);
+  n =  atoi(argv[1]);
+  if (argc > 2) {
+    block_size = atoi(argv[2]);
+    printf("N: %d, Block_Size: %d\n", n, block_size);
+  } else {
+    block_size = -1;
+  }
+  for (n = 2; n <= 1024; n *= 4) {
+    block_size = -1;
 
   //Populate arrays....
   a= (double**)malloc(n*sizeof(double));
@@ -237,10 +245,12 @@ int main (void)
   }
 
   print_matrix(a, n);
+  printf("  X\n");
   print_matrix(b, n);
+  printf("\n");
 
   printf("  Normal: ");
-  if (n < 1001) {
+  if (n <= 1024) {
     start_time();
     multiply (a,b,c,n);
     stop_and_analyze(c, n);
@@ -249,18 +259,21 @@ int main (void)
   }
   
 
-  
-
-  
-
   printf("  Transpose Multiply: ");
   start_time();
   transpose_multiply(a,b,c,n);
   stop_and_analyze(c, n);
 
   transpose(b,n);
-
-  for (block_size = 32; block_size <= 32; block_size *= 2) {
+  
+  if (block_size == -1) {
+    for (block_size = 2; block_size <= MIN(512, n); block_size *= 4) {
+      printf("  Block (%d): ", block_size);
+      start_time();
+      block_multiply(a,b,c,n, block_size);
+      stop_and_analyze(c, n);
+    }
+  } else {
     printf("  Block (%d): ", block_size);
     start_time();
     block_multiply(a,b,c,n, block_size);
@@ -272,7 +285,18 @@ int main (void)
   fast_transpose_multiply(a,b,c,n);
   stop_and_analyze(c, n);
 
+  for (i=0; i<n; i++)
+  {
+    free(a[i]);
+    free(b[i]);
+    free(c[i]);
+  }
+  free(a);
+  free(b);
+  free(c);
 
+
+  }
   return (0);
 }
 

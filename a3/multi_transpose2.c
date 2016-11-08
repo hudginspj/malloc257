@@ -36,11 +36,15 @@ double ftime (void)
 }
 
 
-void linear_transpose_multiply (double *a, double *b, double *c, int n)
+void linear_transpose_multiply (double *a, double *b, double *c, int n, int partitions)
 {
-  int i, j;
+  int ii, i, j;
   double *ak, *bk, *astop;
   double sum;
+  int pid;
+  //int partitions = 4;
+  int p_size = ((n-1)/partitions)+1;
+  //printf("p_size=%d\n", p_size);
 
   for (i = 0; i<n; i++) {
     for (j = i+1; j<n; j++) {
@@ -48,21 +52,43 @@ void linear_transpose_multiply (double *a, double *b, double *c, int n)
     }
   }
 
-  for (i=0; i<n; i++) {
-    for (j=0; j<n; j++) { 
-      sum = 0;
-      ak = a + (i*n);
-      bk = b + (j*n);
-      astop = ak + n;
-      while (ak<astop) {
-        sum += *ak * *bk;
-        ak++;
-        bk++;
+  for (ii=0; ii<n; ii+=p_size) {
+        
+        pid = fork();
+        if ( pid < 0 ) {
+            fprintf(stderr,"fork failed after %d processes\n", 
+              ii);
+            exit(1);
+        } else if ( pid > 0 ) {
+            //printf("parent:  %d\n",i);
+
+        } else {
+          usleep ( 1000 );
+          //printf("ii=%d / stop = %d\n", ii, MIN(ii+p_size, n));
+          int stop = MIN(ii+p_size, n);
+          for (i=ii; i<stop; i++) {
+            //printf("i=%d\n", i);
+            for (j=0; j<n; j++) { 
+              sum = 0;
+              ak = a + (i*n);
+              bk = b + (j*n);
+              astop = ak + n;
+              while (ak<astop) {
+                sum += *ak * *bk;
+                ak++;
+                bk++;
+              }
+
+              c[i*n+j] = sum;
+              //printf("cval= %f, sum = %f, i = %d, j = %d", c[i*n+j], sum, i, j);
+            }
+          }
+          //printf("%dX\n\n",ii);
+          usleep(10000);
+          exit(0);
       }
-      *c = sum;
-      c++;
-    }
   }
+  for ( i = 0; i < (partitions); i++ ) wait(NULL);
 }
 
 
@@ -127,6 +153,7 @@ void million_sems_block_multiply (double *a, double *b, double *c,
 }
 
 
+
 void print_linear_matrix(double *mat, int n) {
   int i,j;
   if (n <= 20) {
@@ -166,15 +193,14 @@ int main (int argc, char **argv)
   block_size = argc > 2 ? atoi(argv[2]) : n/4;
   printf("N: %d, Block_Size: %d\n", n, block_size);
 
-  c_check = (double *)malloc(n*n*sizeof(double));
 
   shmfd = shm_open ( "/pjh_memory", O_RDWR | O_CREAT, 0666 );
   if ( shmfd < 0 ) {
       fprintf(stderr,"Could not create pjh_memory\n");
       exit(1);
   }
-  ftruncate ( shmfd, 3*n*n*sizeof(double) );
-  mem = (double *) mmap ( NULL, 3*n*n*sizeof(double), PROT_READ | PROT_WRITE, MAP_SHARED, shmfd, 0 );
+  ftruncate ( shmfd, 4*n*n*sizeof(double) );
+  mem = (double *) mmap ( NULL, 4*n*n*sizeof(double), PROT_READ | PROT_WRITE, MAP_SHARED, shmfd, 0 );
   if ( mem == NULL ) {
       fprintf(stderr,"Could not map pjh_memory\n");
       exit(1);
@@ -185,6 +211,7 @@ int main (int argc, char **argv)
    a = mem;
   b = a + (n*n);
   c = b + (n*n);
+  c_check = c + (n*n);
 
 
   shmfd = shm_open ( "/pjh_sems", O_RDWR | O_CREAT, 0666 );
@@ -194,7 +221,7 @@ int main (int argc, char **argv)
   }
   ftruncate ( shmfd, n*n*sizeof(sem_t) );
   sem_arr = (sem_t *) mmap ( NULL, n*n*sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED, shmfd, 0 );
-  if ( mem == NULL ) {
+  if ( sem_arr == NULL ) {
       fprintf(stderr,"Could not map pjh_sems\n");
       exit(1);
   }
@@ -229,21 +256,23 @@ int main (int argc, char **argv)
   print_linear_matrix(b, n);
   printf("\n");
 
-  printf("Million Semaphore Block Multiply: \n");
-  start_time();
-  million_sems_block_multiply(a,b,c, n, block_size);
-  stop_and_analyze(c, n);
+  //printf("Million Semaphore Block Multiply: \n");
+  //start_time();
+  //million_sems_block_multiply(a,b,c, n, block_size);
+  //stop_and_analyze(c, n);
 
+  for (i = 8; i <= 8; i *= 2) {
+    printf("Fast Transpose Multiply: %d processes\n", i);
+    start_time();
+    linear_transpose_multiply(a,b,c_check, n, i);
+    stop_and_analyze(c_check, n);
+  }
   
-  printf("Fast Transpose Multiply: \n");
-  start_time();
-  linear_transpose_multiply(a,b,c_check, n);
-  stop_and_analyze(c_check, n);
-
+  j = 0;
   for (i = 0; i < n*n; i++) {
-    j = 0;
+    
     if (c[i] != c_check[i]){
-      printf("Check failed at i = %d\n", i);
+      //printf("Check failed at i = %d\n", i);
       j++;
     }
   }

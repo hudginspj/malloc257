@@ -15,14 +15,14 @@ OBJECT_FILES=	assign2.o \
 				malloc.o
 
 # Productions
-all : main multi mbt
+all : main multi mt2
 
 main : main.c
 	$(CC) $(CFLAGS) $< -o $@ 
 multi : multi_block.c
 	$(CC) $(CFLAGS) $< -o $@ -lrt -pthread
 
-mbt : multithreaded_block_transpose.c
+mt2 : multi_transpose2.c
 	$(CC) $(CFLAGS) $< -o $@ -lrt -pthread
 
 #assign2 : $(OBJECT_FILES)
