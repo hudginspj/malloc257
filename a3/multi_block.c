@@ -15,8 +15,6 @@
 
 #define DOUBLE_SWAP(a, b)  a = DOUBLE_XOR(a, b); b = DOUBLE_XOR(a, b); a = DOUBLE_XOR(a, b); 
 
-//#define SWAP(a, b, t) t = a; a = b; b = t;
-
 #define MIN(a, b)  (a<b) ? a : b
 
 #define PARTITIONS 8
@@ -31,22 +29,11 @@ double ftime(void);
 
 double ftime (void)
 {
-    //struct tms t;
-    //times ( &t );
-    //return (t.tms_utime + t.tms_stime +t.tms_cutime + t.tms_cstime) / 100.0;
 
     struct timeval t;
     gettimeofday(&t, NULL);
-    //printf("secs: %ld, usecs: %ld, %f\n", t.tv_sec, t.tv_usec, (double)t.tv_usec/1000000.0);
     return  (double) t.tv_sec + (double)t.tv_usec/1000000.0;
-  //clock_t t;
-  //t = clock();
-  //printf("Time: %f\n", (float)t/CLOCKS_PER_SEC);
-  //return( (float)t/ CLOCKS_PER_SEC) ;
 }
-
-
-
 
 
 void linear_transpose_multiply (double *a, double *b, double *c, int n)
@@ -295,6 +282,68 @@ void million_sems_multiply (double *a, double *b, double *c,
 }
 
 
+void million_sems_block_multiply (double *a, double *b, double *c, 
+  int n, int block_size)
+{
+  usleep ( 10000 );
+  int i, j, k, i0, j0, k0;
+  int partitions = ((n-1)/block_size)+1;
+  int stop_i, stop_j, stop_k;
+  //printf("Partitions: %d", partitions);
+
+  int pid;
+  double sum;
+
+  for (i=0; i<n; i++) {
+    for (j=0; j<n; j++) { 
+      c[i*n + j] = 0;
+    }
+  }
+
+
+  for (i0=0; i0<partitions; i0++) {
+    for (j0=0; j0<partitions; j0++) { 
+      //sem_t *output_block_sem = sems[i0 * partitions + j0];
+
+      for (k0=0; k0<partitions; k0++) {
+        pid = fork();
+        if ( pid < 0 ) {
+            fprintf(stderr,"fork failed at %d\n", 
+              i0*partitions*partitions + j0*partitions + k0);
+            exit(1);
+        } else if ( pid > 0 ) {
+            //printf("parent:  %d\n",i);
+
+        } else {
+          usleep ( 1000 );
+          //printf("child %d/%d/%d, parent is %d\n",i0,j0,k0, getppid());
+          stop_i = MIN(n, (i0+1)*block_size);
+          for (i=i0*block_size; i<stop_i; i++) {
+            stop_j = MIN(n, (j0+1)*block_size);
+            for (j=j0*block_size; j<stop_j; j++) { 
+              stop_k = MIN(n, (k0+1)*block_size);
+              sum = 0;
+              for (k=k0*block_size; k<stop_k; k++) {
+                sum += a[i*n + k] * b[k*n + j];
+              }
+              sem_wait ( &sem_arr[i*n + j] );
+              c[i*n + j] += sum;
+              sem_post ( &sem_arr[i*n + j] );
+            }
+          }
+          exit(0);
+        }
+
+        
+      }
+    }
+  }
+
+  for ( i = 0; i < (partitions * partitions * partitions); i++ ) wait(NULL);
+
+}
+
+
 void print_linear_matrix(double *mat, int n) {
   int i,j;
   if (n <= 10) {
@@ -325,14 +374,18 @@ void stop_and_analyze(double *mat, int n) {
 }
 
 
-int main (void)
+int main (int argc, char **argv)
 {
-  int i, j, n, shmfd;
+  int i, j, n, block_size, shmfd;
   double *mem, *a, *b, *c, *c_check;
 
 
-  printf ( "Enter the value of n: ");
-  scanf ( "%d", &n);
+  //printf ( "Enter the value of n: ");
+  //scanf ( "%d", &n);
+  if (argc<2) exit(0);
+  n =  atoi(argv[1]);
+  block_size = argc > 2 ? atoi(argv[2]) : n/4;
+  printf("N: %d, Block_Size: %d, %s", n, block_size, argv[1]);
 
   c_check = (double *)malloc(n*n*sizeof(double));
 
@@ -386,7 +439,7 @@ int main (void)
       exit(1);
     }
     sem_unlink ( sem_name );
-    printf("Created %s\n", sem_name);
+    //printf("Created %s\n", sem_name);
   }
 
 
@@ -430,9 +483,9 @@ int main (void)
   //sem_arr_part_multiply(a,b,c, n, PARTITIONS);
   //stop_and_analyze(c, n);
 
-  printf(" Million Semaphore Multiply: \n");
+  printf(" Million Semaphore Block Multiply: \n");
   start_time();
-  million_sems_multiply(a,b,c, n, PARTITIONS);
+  million_sems_block_multiply(a,b,c, n, block_size);
   stop_and_analyze(c, n);
 
   
