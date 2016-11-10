@@ -36,70 +36,11 @@ double ftime (void)
 }
 
 
-void linear_transpose_multiply (double *a, double *b, double *c, int n, int partitions)
-{
-  int ii, i, j;
-  double *ak, *bk, *astop;
-  double sum;
-  int pid;
-  //int partitions = 4;
-  int p_size = ((n-1)/partitions)+1;
-  //printf("p_size=%d\n", p_size);
-
-  for (i = 0; i<n; i++) {
-    for (j = i+1; j<n; j++) {
-      DOUBLE_SWAP(b[i*n+j], b[j*n+i]);
-    }
-  }
-
-  for (ii=0; ii<n; ii+=p_size) {
-        
-        pid = fork();
-        if ( pid < 0 ) {
-            fprintf(stderr,"fork failed after %d processes\n", 
-              ii);
-            exit(1);
-        } else if ( pid > 0 ) {
-            //printf("parent:  %d\n",i);
-
-        } else {
-          usleep ( 1000 );
-          //printf("ii=%d / stop = %d\n", ii, MIN(ii+p_size, n));
-          int stop = MIN(ii+p_size, n);
-          for (i=ii; i<stop; i++) {
-            //printf("i=%d\n", i);
-            for (j=0; j<n; j++) { 
-              sum = 0;
-              ak = a + (i*n);
-              bk = b + (j*n);
-              astop = ak + n;
-              while (ak<astop) {
-                sum += *ak * *bk;
-                ak++;
-                bk++;
-              }
-
-              c[i*n+j] = sum;
-              //printf("cval= %f, sum = %f, i = %d, j = %d", c[i*n+j], sum, i, j);
-            }
-          }
-          //printf("%dX\n\n",ii);
-          usleep(10000);
-          exit(0);
-      }
-  }
-  for ( i = 0; i < (partitions); i++ ) wait(NULL);
-
-  for (i = 0; i<n; i++) {
-    for (j = i+1; j<n; j++) {
-      DOUBLE_SWAP(b[i*n+j], b[j*n+i]);
-    }
-  }
-}
 
 
 
-void million_sems_block_multiply (double *a, double *b, double *c, 
+
+void multithreaded_block_multiply (double *a, double *b, double *c, 
   int n, int block_size)
 {
   usleep ( 10000 );
@@ -158,11 +99,66 @@ void million_sems_block_multiply (double *a, double *b, double *c,
 
 }
 
+void multithreaded_transpose_multiply (double *a, double *b, double *c, int n, int partitions)
+{
+  int ii, i, j;
+  double *ak, *bk, *astop;
+  double sum;
+  int pid;
+  //int partitions = 4;
+  int p_size = ((n-1)/partitions)+1;
+  //printf("p_size=%d\n", p_size);
+
+  for (i = 0; i<n; i++) {
+    for (j = i+1; j<n; j++) {
+      DOUBLE_SWAP(b[i*n+j], b[j*n+i]);
+    }
+  }
+
+  for (ii=0; ii<n; ii+=p_size) {
+        
+        pid = fork();
+        if ( pid < 0 ) {
+            fprintf(stderr,"fork failed after %d processes\n", 
+              ii);
+            exit(1);
+        } else if ( pid > 0 ) {
+            //printf("parent:  %d\n",i);
+
+        } else {
+          usleep ( 1000 );
+          //printf("ii=%d / stop = %d\n", ii, MIN(ii+p_size, n));
+          int stop = MIN(ii+p_size, n);
+          for (i=ii; i<stop; i++) {
+            //printf("i=%d\n", i);
+            for (j=0; j<n; j++) { 
+              sum = 0;
+              ak = a + (i*n);
+              bk = b + (j*n);
+              astop = ak + n;
+              while (ak<astop) {
+                sum += *ak * *bk;
+                ak++;
+                bk++;
+              }
+
+              c[i*n+j] = sum;
+              //printf("cval= %f, sum = %f, i = %d, j = %d", c[i*n+j], sum, i, j);
+            }
+          }
+          //printf("%dX\n\n",ii);
+          usleep(10000);
+          exit(0);
+      }
+  }
+  for ( i = 0; i < (partitions); i++ ) wait(NULL);
+}
+
 
 
 void print_linear_matrix(double *mat, int n) {
   int i,j;
-  if (n <= 20) {
+  //if (n <= 20) {
     for (i=0; i<n; i++) {
       for (j=0; j<n; j++) {
         printf("%.1f ", *mat);
@@ -170,7 +166,7 @@ void print_linear_matrix(double *mat, int n) {
       }
       printf("\n");
     }
-  }
+  //} 
 }
 
 
@@ -195,20 +191,23 @@ int main (int argc, char **argv)
 
 
   if (argc<2) {
-    printf("multithreaded N [block_size]\n");
+    printf("multi N [block_size]\n");
     exit(0);
   }
   n =  atoi(argv[1]);
-  block_size = argc > 2 ? atoi(argv[2]) : n/4;
+  block_size = argc > 2 ? atoi(argv[2]) : 
+           ((n>4) ? n/4 :1);
   printf("N: %d, Block_Size: %d\n", n, block_size);
   if (n/block_size >15) {
     printf("Too many processes will be created.\n");
-    printf("Decreas N or incread block_size.\n");
+    printf("Decrease N or increase block_size.\n");
     exit(0);
   }
-  
-  
-  
+  if (block_size >n) {
+    printf("Block size must be less than N.\n");
+    exit(0);
+  }
+
 
   shmfd = shm_open ( "/pjh_memory", O_RDWR | O_CREAT, 0666 );
   if ( shmfd < 0 ) {
@@ -252,53 +251,37 @@ int main (int argc, char **argv)
     }
   }
 
-  while (n>=256) {
-  printf("N:------------%d\n", n);//////////////////////////////////////////
 
   for (i=0; i<n; i++) {
     for (j=0; j<n; j++) {
-      a[i*n + j]= i + j;
+      scanf ( "%lf", &a[i*n + j]);
+      //a[i*n + j]= i + j;
       //a[i*n + j]= 1;
     }
   }
 
   for (i=0; i<n; i++) {
     for (j=0; j<n; j++) {
-      b[i*n + j]= i - (j/2) ;
+      scanf ( "%lf", &b[i*n + j]);
+      //b[i*n + j]= i - (j/2) ;
       //b[i*n + j]= 2;
     }
   }
 
-  //print_linear_matrix(a, n);
-  //printf("  X\n");
-  //print_linear_matrix(b, n);
-  //printf("\n");
+  print_linear_matrix(a, n);
+  printf("  X\n");
+  print_linear_matrix(b, n);
+  printf("\n");
 
-  //printf("Million Semaphore Block Multiply: \n");
-  //start_time();
-  //million_sems_block_multiply(a,b,c, n, block_size);
-  //stop_and_analyze(c, n);
-
+  printf("Multithreaded Block Multiply: \n");
   start_time();
-  million_sems_block_multiply(a,b,c, n, n/4);
-  printf("MSBM/4: ");
+  multithreaded_block_multiply(a,b,c, n, block_size);
   stop_and_analyze(c, n);
 
-  start_time();
-  million_sems_block_multiply(a,b,c, n, n/3);
-  printf("MSBM/3: ");
-  stop_and_analyze(c, n);
-
-  
-  start_time();
-  million_sems_block_multiply(a,b,c, n, n/2);
-  printf("MSBM/2: ");
-  stop_and_analyze(c, n);
-
-  for (i = 4; i <= 32; i *= 2) {
+  for (i = 16; i <= 16; i *= 2) {
+    printf("Multithreaded Transpose Multiply: %d processes\n", i);
     start_time();
-    linear_transpose_multiply(a,b,c_check, n, i);
-    printf("FTM %d:", i);
+    multithreaded_transpose_multiply(a,b,c_check, n, i);
     stop_and_analyze(c_check, n);
   }
   
@@ -320,8 +303,7 @@ int main (int argc, char **argv)
         exit(1);
     }
   }
-  
-  n /=2; }
+
   return (0);
 }
 

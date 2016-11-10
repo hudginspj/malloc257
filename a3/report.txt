@@ -1,3 +1,18 @@
+Makefile is included, creates executables main and multi.
+
+main contains all single-threaded operations.
+
+multi contains multithreaded block multiplication and a really fast multithreaded transpose multiplication to check the correctness of output.
+
+Both executables take N and an optional block size as command line arguments, and scan
+two matrixes from standard input.
+
+During testing, block size 32 was found to be optimal for single-threaded block multiplication.
+
+
+
+
+Results from testing (formated for testing):
 
 N       Basic   Trans   Ptr Trs Blk 2   Blk 8   Blk 32  Blk 128 Blk 512
        2    0.00    0.00    0.00    0.00
@@ -80,14 +95,15 @@ FTM 8:   Elapsed time:       0.04   DP MFLOPS:     777.73
 FTM 16:   Elapsed time:       0.06   DP MFLOPS:     598.69
 FTM 32:   Elapsed time:       0.03   DP MFLOPS:    1191.14
 (0) checks failed.
-[hudginspj@cmsc257 a3]$ ./mt2 1024
-N: 2024, Block_Size: 506
-N:------------2024
+[hudginspj@cmsc257 a3]$ ./mt2 2048
+N: 2048, Block_Size: 512
+N:------------2048
 MSBM/4:    Elapsed time:      15.48   DP MFLOPS:    1071.04
 MSBM/3:    Elapsed time:      15.15   DP MFLOPS:    1094.88
 MSBM/2:    Elapsed time:      27.45   DP MFLOPS:     604.04
 FTM 4:   Elapsed time:       8.73   DP MFLOPS:    1899.85
 FTM 8:   Elapsed time:       9.82   DP MFLOPS:    1688.92
+
 N: 1024, Block_Size: 256
 N:------------1024
 MSBM/4:    Elapsed time:       3.66   DP MFLOPS:     587.42
@@ -116,7 +132,6 @@ FTM 8:   Elapsed time:       0.05   DP MFLOPS:     613.92
 FTM 16:   Elapsed time:       0.03   DP MFLOPS:    1011.80
 FTM 32:   Elapsed time:       0.03   DP MFLOPS:    1188.56
 (0) checks failed.
-
 
 
 

@@ -8,7 +8,7 @@
 
 #define SWAP(a, b, t) t = a; a = b; b = t;
 
-#define MIN(a, b)  (a<b) ? a : b
+#define MIN(a, b)  ((a<b) ? a : b)
 
 double start, stop, used, mf;
 
@@ -173,14 +173,14 @@ void block_multiply (double **a, double **b, double **c, int n, int block_size)
 
 void print_matrix(double **mat, int n) {
   int i,j;
-  if (n <= 10) {
+  //if (n <= 10) {
     for (i=0; i<n; i++) {
       for (j=0; j<n; j++) {
         printf("%.1f ", mat[i][j]);
       }
       printf("\n");
     }
-  }
+  //}
 
 }
 
@@ -194,11 +194,10 @@ void stop_and_analyze(double **mat, int n) {
   used = stop - start;
   mf = ((n*n)  / 500000.0) * n  / used;
   //printf ("\n");
-  printf("   Elapsed time: %10.2f", used);
-  printf("   DP MFLOPS: %10.2f \n", mf);
+  printf(" Elapsed time: %8.2f", used);
+  printf(" DP MFLOPS: %8.2f \n", mf);
   print_matrix(mat, n);
 }
-
 
 
 int main (int argc, char **argv)
@@ -206,10 +205,17 @@ int main (int argc, char **argv)
   int i, j, n, block_size;
   double **a, **b, **c;
 
+  /*printf(" N       ");
+  printf("Basic   ");
+  printf("Trans   ");
+  printf("Ptr Trs ");
+  printf("Blk 2   ");
+  printf("Blk 8   ");
+  printf("Blk 32  ");
+  printf("Blk 128 ");
+  printf("Blk 512 \n");*/
 
-  //printf ( "Enter the value of n: ");
-  //scanf ( "%d", &n);
-  if (argc<2) exit(0);
+  if (argc<2) exit(0);//
   n =  atoi(argv[1]);
   if (argc > 2) {
     block_size = atoi(argv[2]);
@@ -217,8 +223,10 @@ int main (int argc, char **argv)
   } else {
     block_size = -1;
   }
-  for (n = 2; n <= 1024; n *= 4) {
-    block_size = -1;
+  if (block_size >n) {
+    printf("Block size must be less than N.\n");
+    exit(0);
+  }
 
   //Populate arrays....
   a= (double**)malloc(n*sizeof(double));
@@ -234,13 +242,15 @@ int main (int argc, char **argv)
 
   for (i=0; i<n; i++) {
     for (j=0; j<n; j++) {
-      a[i][j]= i + j;
+      scanf ( "%lf", &a[i][j]);
+      //a[i][j]= i + j;
     }
   }
 
   for (i=0; i<n; i++) {
     for (j=0; j<n; j++) {
-      b[i][j]= i - (j/2) ;
+      scanf ( "%lf", &b[i][j]);
+      //b[i][j]= i - (j/2) ;
     }
   }
 
@@ -248,8 +258,9 @@ int main (int argc, char **argv)
   printf("  X\n");
   print_matrix(b, n);
   printf("\n");
+  //printf("%8d", n);
 
-  printf("  Normal: ");
+  printf("Basic Multiply: ");
   if (n <= 1024) {
     start_time();
     multiply (a,b,c,n);
@@ -257,33 +268,37 @@ int main (int argc, char **argv)
   } else {
     printf("Skipping.\n");
   }
-  
 
-  printf("  Transpose Multiply: ");
+  printf("Transpose Multiply: ");
   start_time();
   transpose_multiply(a,b,c,n);
   stop_and_analyze(c, n);
 
   transpose(b,n);
+
+  printf("Transpose w/ Pointers: ");
+  start_time();
+  fast_transpose_multiply(a,b,c,n);
+  stop_and_analyze(c, n);
+
+  transpose(b,n);
   
   if (block_size == -1) {
-    for (block_size = 2; block_size <= MIN(512, n); block_size *= 4) {
-      printf("  Block (%d): ", block_size);
+    int stop = MIN(512, n);
+    for (block_size = 2; (block_size <= stop); block_size *= 4) {
+      printf("Blocks (size = %d): ", block_size);
       start_time();
       block_multiply(a,b,c,n, block_size);
       stop_and_analyze(c, n);
     }
   } else {
-    printf("  Block (%d): ", block_size);
+    printf("Blocks (size = %d): ", block_size);
     start_time();
     block_multiply(a,b,c,n, block_size);
     stop_and_analyze(c, n);
   }
-
-  printf("  Fast Transpose: ");
-  start_time();
-  fast_transpose_multiply(a,b,c,n);
-  stop_and_analyze(c, n);
+  printf("\n");
+  
 
   for (i=0; i<n; i++)
   {
@@ -296,7 +311,6 @@ int main (int argc, char **argv)
   free(c);
 
 
-  }
   return (0);
 }
 
