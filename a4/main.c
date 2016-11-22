@@ -8,7 +8,7 @@
 char *prompt = "257sh";
 
 void signal_handler(int no) {
-  printf("Signal handler reccieved [%d]\n", no);
+  printf("Signal handler reccieved [%d]\n%s$ ", no, prompt);
 }
 
 
@@ -21,7 +21,7 @@ void execute(int num_tokens, char **tokens) {
 
   command = tokens[0];
   if (strcmp(command, "exit") == 0) {
-    exit(EXIT_SUCCESS);
+    raise(SIGKILL);
   } else if (strcmp(command, "pid") == 0) {
     //pid_t pid = ;
     printf("%d\n", getpid());
@@ -33,15 +33,16 @@ void execute(int num_tokens, char **tokens) {
     if (num_tokens < 2) {
       puts(dir);
     } else {
-      if (strncmp(tokens[1], "/", 1) == 0
-         || strncmp(tokens[1], "~", 1) == 0) {
-        strcpy(tokens[1], dir);
+      if (strncmp(tokens[1], "/", 1) == 0) {
+        i = chdir(tokens[1]);
+        if (i == -1) puts("Directory does not exist");
       } else {
         strcat(dir, "/");
         strncat(dir, tokens[1], 50);
+        i = chdir(dir);
+        if (i == -1) puts("Directory does not exist");
       }
-      i = chdir(dir);
-      if (i == -1) puts("Directory does not exist");
+      
     }
   } else {
     for (i = 0; i < num_tokens; i++) {
@@ -53,7 +54,8 @@ void execute(int num_tokens, char **tokens) {
       execvp(tokens[0], tokens);
       exit(0);
     } else {
-      wait(NULL);
+      wait(&i);
+      printf("Child exited with status [%d]\n", WEXITSTATUS(i));
     }
 
 
