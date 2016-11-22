@@ -7,16 +7,56 @@
 #include <arpa/inet.h>
 #include <errno.h>
 
+#define BUFFER_SIZE 8
+#define PORT 14297
+#define TERMINAL_STR "cmsc257"
+
+int term(char *str) {
+  return !strncmp(str, TERMINAL_STR, sizeof(TERMINAL_STR));
+}
+
+int file_to_soc(int client, char *filename) {
+    int i, reached_eof = 0;
+    char c;
+    char buffer[BUFFER_SIZE];
+    FILE *input = fopen( filename, "r");
+    
+    
+    while (!reached_eof) {
+      
+      for (i = 0; i<BUFFER_SIZE; i++){
+        c = fgetc(input);
+        buffer[i] = c;
+        if (c == EOF) {
+          reached_eof = 1;
+          break;
+        }
+      }
+      if (write( client, buffer, BUFFER_SIZE) != BUFFER_SIZE) {
+            return( errno );
+      }
+      printf( "Sent a value of [%8s]\n", buffer );
+    }
+    strcpy(buffer, TERMINAL_STR);
+    if (write( client, buffer, BUFFER_SIZE) != BUFFER_SIZE) {
+            return( errno );
+    }
+
+
+    fclose(input);
+    return(0);
+}
 
 
 int server_operation( void ) {  
   int server, client; 
   uint32_t inet_len; 
-  char value[16];
-  char *response = "Bugger off!";
+  //char value[16];
+  //char *response = "Bugger off!";
+  char buffer[BUFFER_SIZE];
   struct sockaddr_in saddr, caddr; 
     saddr.sin_family = AF_INET; 
-    saddr.sin_port = htons(16453); 
+    saddr.sin_port = htons(PORT); 
     saddr.sin_addr.s_addr = htonl(INADDR_ANY); 
     server = socket(PF_INET, SOCK_STREAM, 0);  
     
@@ -44,25 +84,33 @@ int server_operation( void ) {
             return( -1 );
         }
         printf( "Server new client connection [%s/%d]", inet_ntoa(caddr.sin_addr), caddr.sin_port );
-        read( client, value, 16);
-        //if (0&& read( client, value, 2) != sizeof(value) ) {
-        if (errno) {
+        //read( client, value, BUFFER_SIZE);
+        if (read( client, buffer, BUFFER_SIZE) != BUFFER_SIZE ) {
+        //if (errno) {
             printf( "Error writing network data [%s]\n", strerror(errno) );
             close(server);
             return( -1 );
         }
         //value = ntohl(value);
-        printf( "Receivd a value of [%s]\n", value );
+        printf( "Received a value of [%8s]\n", buffer );
         //value++;
         //value = htonl(value);
-        write( client, response, 16);
-        //if (write( client, response, sizeof(response)) != sizeof(response) ) {
-        if (errno) {
+        //write( client, response, BUFFER_SIZE);
+
+        /*if (write( client, buffer, BUFFER_SIZE) != BUFFER_SIZE) {
+        //if (errno) {
             printf( "Error writing network data [%s]\n", strerror(errno) );
             close(server);
             return( -1 );
         }
-        printf( "Sent a value of [%s]\n", response );
+        printf( "Sent a value of [%8s]\n", buffer );*/
+
+        if (file_to_soc(client, "client.c")) {
+            printf( "Error writing file to network [%s]\n", strerror(errno) );
+            close(server);
+            return( -1 );
+        }
+
         close(client); // Close the socket
     }
     return ( 0 );
