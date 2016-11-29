@@ -7,8 +7,8 @@
 #include <arpa/inet.h>
 #include <errno.h>
 
-#define BUFFER_SIZE 8
-#define PORT 14297
+#define BUFFER_SIZE 50
+#define PORT 2147
 #define TERMINAL_STR "cmsc257"
 
 int term(char *str) {
@@ -17,7 +17,7 @@ int term(char *str) {
 
 
 int soc_to_file(int server, char *filename) {
-    int i, done = 0;
+    int i;
     char c;
     char buffer[BUFFER_SIZE];
     FILE *output = fopen( filename, "w+");
@@ -30,7 +30,7 @@ int soc_to_file(int server, char *filename) {
       if (term(buffer)) {
         break;
       } 
-      printf( "Received a value of [%8s]\n", buffer ); 
+      //printf( "Received a value of [%8s]\n", buffer ); 
       
       for (i = 0; i<BUFFER_SIZE; i++){
         c = buffer[i];
@@ -46,7 +46,7 @@ int soc_to_file(int server, char *filename) {
     return(0);
 }
 
-int client_operation( void ) {
+int client_operation( char *filename ) {
 
   int socket_fd;
   //uint32_t value;
@@ -71,7 +71,7 @@ int client_operation( void ) {
     }    
     //value = htonl( 1 ); 
     //write( socket_fd, value, BUFFER_SIZE);
-    strcpy(buffer, "Hi!");
+    strcpy(buffer, filename);
     if (write( socket_fd, buffer, BUFFER_SIZE) != BUFFER_SIZE ) {  
     //if (errno){
         printf( "Error writing network data [%s]\n", strerror(errno) ); 
@@ -87,7 +87,9 @@ int client_operation( void ) {
     //value = ntohl(value); 
     printf( "Receivd a value of [%8s]\n", buffer ); */
     
-    if (soc_to_file(socket_fd, "foo")) {  
+    strcpy(buffer, filename);
+    strncpy(buffer, "X", 1);
+    if (soc_to_file(socket_fd, buffer)) {  
         printf( "Error reading network data [%s]\n", strerror(errno) ); 
         return( -1 ); 
     }    
@@ -106,7 +108,6 @@ int main (int argc, char **argv)
     puts("Please type a filename");
     return (0);
   }
-  Heyyyyyyy!!
-  return client_operation(); 
+  return client_operation(argv[1]); 
 }
 

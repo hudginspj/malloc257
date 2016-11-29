@@ -12,11 +12,14 @@ LIBS=-lm
 
 
 # Productions
-all : client server
+all : client server t_server
 
 client : client.c
 	$(CC) $(CFLAGS) $< -o $@ 
 server : server.c
+	$(CC) $(CFLAGS) $< -o $@ -lrt -pthread
+
+t_server : t_server.c
 	$(CC) $(CFLAGS) $< -o $@ -lrt -pthread
 
 

@@ -12,15 +12,23 @@
 #define TERMINAL_STR "cmsc257"
 
 int shutdown_requested = 0;
-int in_progress = 0;
+//int in_progress = 0;
+int children = 0;
 int server;
+int pid =1;
 
 void signal_handler(int no) {
-  shutdown_requested = 1;
-  printf("\nShutting down\n");
-  if (!in_progress) {
+  //puts("signal caught");
+  //printf("Pid %d\n", pid);
+  if (pid > 0) {
+    shutdown_requested = 1;
+    printf("\nShutting down\n");
+    for (;children >0; children--) {
+      //printf("Waiting for child %d\n", children);
+      wait(NULL);
+    }
+    //puts("Children dead");
     close(server);
-    //return(0);
     exit(0);
   }
 }
@@ -32,30 +40,34 @@ int term(char *str) {
 
 int file_to_soc(int client, char *filename) {
     int i, reached_eof = 0;
-    char c;
     char buffer[BUFFER_SIZE];
     FILE *input = fopen( filename, "r");
     
 
-    
+    //Stop after eof is reached
     while (!reached_eof) {
-      
+      //fill buffer
+      usleep(80000);
       for (i = 0; i<BUFFER_SIZE; i++){
-        c = fgetc(input);
-        buffer[i] = c;
-        if (c == EOF) {
+        
+        if (EOF == (buffer[i] = fgetc(input))) {
           reached_eof = 1;
           break;
         }
       }
+      //write buffer to socket
       if (write( client, buffer, BUFFER_SIZE) != BUFFER_SIZE) {
             return( errno );
       }
       //printf( "Sent a value of [%8s]\n", buffer );
     }
+
+
+
     strcpy(buffer, TERMINAL_STR);
     if (write( client, buffer, BUFFER_SIZE) != BUFFER_SIZE) {
-            return( errno );
+        return( errno );
+        //raise(SIGINT);
     }
 
 
@@ -66,6 +78,7 @@ int file_to_soc(int client, char *filename) {
 
 int server_operation( void ) {  
   int server, client; 
+  
   uint32_t inet_len; 
   //char value[16];
   //char *response = "Bugger off!";
@@ -95,13 +108,16 @@ int server_operation( void ) {
     } 
 
     while ( !shutdown_requested ) {
-        inet_len = sizeof(caddr);
-        if ( (client = accept( server, (struct sockaddr *)&caddr, &inet_len )) == -1 ) {
-            printf( "Error on client accept [%s]\n", strerror(errno) );
-            close(server);
-            return( -1 );
-        }
-        in_progress = 1;
+      inet_len = sizeof(caddr);
+      if ( (client = accept( server, (struct sockaddr *)&caddr, &inet_len )) == -1 ) {
+          printf( "Error on client accept [%s]\n", strerror(errno) );
+          close(server);
+          return( -1 );
+      }  
+      children++;
+      pid = fork();
+      if (pid == 0) {
+
         printf( "Server new client connection [%s/%d]", inet_ntoa(caddr.sin_addr), caddr.sin_port );
         //read( client, value, BUFFER_SIZE);
         if (read( client, buffer, BUFFER_SIZE) != BUFFER_SIZE ) {
@@ -131,8 +147,15 @@ int server_operation( void ) {
         }
 
         close(client); // Close the socket
-        in_progress = 0;
+        exit(0);
+        //in_progress = 0;
+      } else if (pid < 0) {
+        shutdown_requested = 1;
+      }
     }
+
+
+    for (;children >0; children--) wait(NULL);
     close(server);
     return ( 0 );
 }
