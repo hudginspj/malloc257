@@ -12,19 +12,19 @@
 
 char TERMINAL_STR[8];
 int term_i = 0;
-char queue[9];
+char queue[10];
 int queue_i = 0;
 int queue_size = 0;
 
 void putc_queue(char c, FILE *fp) {
    queue[queue_i] = c;
-   if (queue_i == 8) {
+   if (queue_i == 9) {
       queue_i = 0;
    } else {
      queue_i++;
    }
 
-   if (queue_size < 9) {
+   if (queue_size < 10) {
       queue_size++;
    } else {
      fputc(queue[queue_i], fp);
@@ -37,13 +37,19 @@ void putc_queue(char c, FILE *fp) {
 //}
 
 int term(char c) {
+  if (term_i > 2) printf("term%c%d\n", c,term_i);
+
   if (c == TERMINAL_STR[term_i]) {
-    if (term_i == 7) return 1;
+    puts("match");
+    if (term_i == 6) {
+      puts("final match");
+      return(1);
+    }
     term_i++;
   } else {
     term_i = 0;
   }
-  return 0;
+  return(0);
 }
 
 
@@ -68,11 +74,13 @@ int soc_to_file(int server, char *filename) {
         
         if (term(c)) {
           done = 1;
+          puts("term found");
           break;
         }
         putc_queue(c, output);
       }
     }
+    puts("loop exited");
 
     fclose(output);
     return(0);
@@ -138,6 +146,7 @@ int main (int argc, char **argv)
 {
   strcpy(TERMINAL_STR,"cmsc25X");
   TERMINAL_STR[6] = '7';
+  puts(TERMINAL_STR);
   if (argc <2) {
     puts("Please type a filename");
     return (0);

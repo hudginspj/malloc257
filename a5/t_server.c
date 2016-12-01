@@ -20,37 +20,17 @@ int pid =1;
 
 char TERMINAL_STR[8];
 int term_i = 0;
-char queue[9];
-int queue_i = 0;
-int queue_size = 0;
 
-void putc_queue(char c, FILE *fp) {
-   queue[queue_i] = c;
-   if (queue_i == 8) {
-      queue_i = 0;
-   } else {
-     queue_i++;
-   }
-
-   if (queue_size < 9) {
-      queue_size++;
-   } else {
-     fputc(queue[queue_i], fp);
-   }
-}
-
-
-
-int term(char c) {
-  if (c == TERMINAL_STR[term_i]) {
-    if (term_i == 7) return 1;
-    term_i++;
-  } else {
-    term_i = 0;
+int write_term(){
+  char c; 
+  if (term_i < 8) {
+     c = TERMINAL_STR[term_i];
+     term_i++;
+     return c;
+  } else{
+    return 0;
   }
-  return 0;
 }
-
 
 void signal_handler(int no) {
   //puts("signal caught");
@@ -70,35 +50,36 @@ void signal_handler(int no) {
 
 
 int file_to_soc(int client, char *filename) {
-    int i, reached_eof = 0;
+    int i, reached_eof = 0, done = 0;
+    char c;
     char buffer[BUFFER_SIZE];
     FILE *input = fopen( filename, "r");
     
 
-    //Stop after eof is reached
-    while (!reached_eof) {
-      //fill buffer
-      //usleep(80000);
+    
+    while (!done) {
+      
       for (i = 0; i<BUFFER_SIZE; i++){
-        
-        if (EOF == (buffer[i] = fgetc(input))) {
-          reached_eof = 1;
-          break;
+        if (reached_eof) {
+          c = write_term();
+          if (c == 0) {
+            done = 1;
+            break;
+          } else {
+            buffer[i] = c;
+          }
+        } else {
+          c = fgetc(input);
+          buffer[i] = c;
+          if (c == EOF) {
+            reached_eof = 1;
+          }
         }
       }
-      //write buffer to socket
       if (write( client, buffer, BUFFER_SIZE) != BUFFER_SIZE) {
             return( errno );
       }
       //printf( "Sent a value of [%8s]\n", buffer );
-    }
-
-
-
-    strcpy(buffer, TERMINAL_STR);
-    if (write( client, buffer, BUFFER_SIZE) != BUFFER_SIZE) {
-        return( errno );
-        //raise(SIGINT);
     }
 
 
@@ -183,8 +164,8 @@ int server_operation( void ) {
 
 int main (int argc, char **argv)
 {
-  strcpy(TERMINAL_STR,"cmsc25X");
-  TERMINAL_STR[6] = '7';
+  strcpy(TERMINAL_STR,"Xmsc257");
+  TERMINAL_STR[0] = 'c';
   return server_operation();
 }
 
