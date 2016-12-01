@@ -21,16 +21,6 @@ int pid =1;
 char TERMINAL_STR[8];
 int term_i = 0;
 
-int write_term(){
-  char c; 
-  if (term_i < 8) {
-     c = TERMINAL_STR[term_i];
-     term_i++;
-     return c;
-  } else{
-    return 0;
-  }
-}
 
 void signal_handler(int no) {
   //puts("signal caught");
@@ -49,13 +39,25 @@ void signal_handler(int no) {
 }
 
 
+int write_term(){
+  char c; 
+  if (term_i < 8) {
+     c = TERMINAL_STR[term_i];
+     term_i++;
+     //printf("write_term%c", c);
+     return c;
+  } else{
+    return 0;
+  }
+}
+
 int file_to_soc(int client, char *filename) {
     int i, reached_eof = 0, done = 0;
     char c;
     char buffer[BUFFER_SIZE];
     FILE *input = fopen( filename, "r");
     
-
+    term_i = 0;
     
     while (!done) {
       
@@ -70,23 +72,28 @@ int file_to_soc(int client, char *filename) {
           }
         } else {
           c = fgetc(input);
-          buffer[i] = c;
+          
           if (c == EOF) {
             reached_eof = 1;
+          } else {
+            buffer[i] = c;
           }
         }
       }
       if (write( client, buffer, BUFFER_SIZE) != BUFFER_SIZE) {
             return( errno );
       }
-      //printf( "Sent a value of [%8s]\n", buffer );
+      printf( "Sent a value of [%8s]\n", buffer );
     }
+    //strcpy(buffer, TERMINAL_STR);
+    //if (write( client, buffer, BUFFER_SIZE) != BUFFER_SIZE) {
+    //        return( errno );
+    //}
 
 
     fclose(input);
     return(0);
 }
-
 
 int server_operation( void ) {  
   int server, client; 

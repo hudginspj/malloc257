@@ -41,7 +41,7 @@ int write_term(){
   if (term_i < 8) {
      c = TERMINAL_STR[term_i];
      term_i++;
-     printf("write_term%c", c);
+     //printf("write_term%c", c);
      return c;
   } else{
     return 0;
@@ -80,7 +80,7 @@ int file_to_soc(int client, char *filename) {
       if (write( client, buffer, BUFFER_SIZE) != BUFFER_SIZE) {
             return( errno );
       }
-      printf( "Sent a value of [%8s]\n", buffer );
+      //printf( "Sent a value of [%8s]\n", buffer );
     }
     //strcpy(buffer, TERMINAL_STR);
     //if (write( client, buffer, BUFFER_SIZE) != BUFFER_SIZE) {
@@ -170,7 +170,7 @@ int main (int argc, char **argv)
 {
   strcpy(TERMINAL_STR,"Xmsc257");
   TERMINAL_STR[0] = 'c';
-  puts(TERMINAL_STR);
+  //puts(TERMINAL_STR);
   return server_operation();
 }
 

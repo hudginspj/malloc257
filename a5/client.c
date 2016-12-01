@@ -18,15 +18,15 @@ int queue_size = 0;
 
 void putc_queue(char c, FILE *fp) {
    queue[queue_i] = c;
-   if (queue_i == 9) {
+   queue_size++;
+   if (queue_i == 8) {
       queue_i = 0;
    } else {
      queue_i++;
    }
-
-   if (queue_size < 10) {
-      queue_size++;
-   } else {
+   //if (queue_size == 1) printf("0000000000!!!!!!!!!!!!!!!!%c", queue[queue_i]);
+   //if (queue_size == 9) printf("9999999999!!!!!!!!!!!!!!!%c", queue[queue_i]);
+   if (queue_size >= 9) {
      fputc(queue[queue_i], fp);
    }
 }
@@ -40,9 +40,9 @@ int term(char c) {
   if (term_i > 2) printf("term%c%d\n", c,term_i);
 
   if (c == TERMINAL_STR[term_i]) {
-    puts("match");
+    //puts("match");
     if (term_i == 6) {
-      puts("final match");
+      //puts("final match");
       return(1);
     }
     term_i++;
@@ -74,13 +74,13 @@ int soc_to_file(int server, char *filename) {
         
         if (term(c)) {
           done = 1;
-          puts("term found");
+          //puts("term found");
           break;
         }
-        putc_queue(c, output);
+        //putc_queue(c, output);
       }
     }
-    puts("loop exited");
+    //puts("loop exited");
 
     fclose(output);
     return(0);
