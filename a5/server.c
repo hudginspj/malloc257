@@ -9,19 +9,24 @@
 
 #define BUFFER_SIZE 50
 #define PORT 2147
-#define TERMINAL_STR "cmsc257"
+
+
+
+char TERMINAL_STR[8];
 
 int shutdown_requested = 0;
 int in_progress = 0;
 int server;
 
 void signal_handler(int no) {
-  shutdown_requested = 1;
-  printf("\nShutting down\n");
-  if (!in_progress) {
-    close(server);
-    //return(0);
-    exit(0);
+  if (no == SIGINT) {
+    shutdown_requested = 1;
+    printf("\nShutting down\n");
+    if (!in_progress) {
+      close(server);
+      //return(0);
+      exit(0);
+    }
   }
 }
 
@@ -139,6 +144,8 @@ int server_operation( void ) {
 
 int main (int argc, char **argv)
 {
+  TERMINAL_STR = "cmsc25X";
+  TERMINAL_STR[6] = '7';
   return server_operation();
 }
 

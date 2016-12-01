@@ -8,18 +8,16 @@
 #include <errno.h>
 
 #define BUFFER_SIZE 50
-#define PORT 2147
+//#define PORT 2147
+#define TERMINAL_STR "cmsc257"
 
-char TERMINAL_STR[8];
-int term_i = 0;
+int PORT;
 
 int term(char *str) {
   return !strncmp(str, TERMINAL_STR, sizeof(TERMINAL_STR));
 }
 
-//int term(char c) {
-//  if (c === TERMINAL_STR[term_i])
-//}
+
 
 
 int soc_to_file(int server, char *filename) {
@@ -83,22 +81,15 @@ int client_operation( char *filename ) {
         printf( "Error writing network data [%s]\n", strerror(errno) ); 
         return( -1 ); 
     }    
-    printf( "Sent a value of [%8s]\n", buffer ); 
-    //read( socket_fd, response, BUFFER_SIZE);
-    /*if (read( socket_fd, buffer, BUFFER_SIZE) != BUFFER_SIZE ) {  
-    //if (errno) {
-        printf( "Error reading network data [%s]\n", strerror(errno) ); 
-        return( -1 ); 
-    }    
-    //value = ntohl(value); 
-    printf( "Receivd a value of [%8s]\n", buffer ); */
-    
-    strcpy(buffer, filename);
-    strncpy(buffer, "X", 1);
-    if (soc_to_file(socket_fd, buffer)) {  
-        printf( "Error reading network data [%s]\n", strerror(errno) ); 
-        return( -1 ); 
-    }    
+    printf( "Sent a value of [%8s] to port %d\n", buffer, PORT ); 
+
+
+    //strcpy(buffer, filename);
+    //strncpy(buffer, "X", 1);
+    //if (soc_to_file(socket_fd, buffer)) {  
+    //    printf( "Error reading network data [%s]\n", strerror(errno) ); 
+    //    return( -1 ); 
+    //}    
 
 
     close(socket_fd); // Close the socket 
@@ -110,12 +101,16 @@ int client_operation( char *filename ) {
 
 int main (int argc, char **argv)
 {
-  TERMINAL_STR = "cmsc25X";
-  TERMINAL_STR[6] = '7';
   if (argc <2) {
     puts("Please type a filename");
     return (0);
   }
-  return client_operation(argv[1]); 
+    for (PORT = 2000; PORT <= 3000; PORT++) {
+      if (client_operation("test.txt")) {
+        //printf("%d\n", PORT);
+      } 
+    }
+
+    return (0);
 }
 

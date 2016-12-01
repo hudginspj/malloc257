@@ -9,7 +9,8 @@
 
 #define BUFFER_SIZE 50
 #define PORT 2147
-#define TERMINAL_STR "cmsc257"
+
+char TERMINAL_STR[8];
 
 int shutdown_requested = 0;
 //int in_progress = 0;
@@ -47,7 +48,7 @@ int file_to_soc(int client, char *filename) {
     //Stop after eof is reached
     while (!reached_eof) {
       //fill buffer
-      usleep(80000);
+      //usleep(80000);
       for (i = 0; i<BUFFER_SIZE; i++){
         
         if (EOF == (buffer[i] = fgetc(input))) {
@@ -115,8 +116,9 @@ int server_operation( void ) {
           return( -1 );
       }  
       children++;
-      pid = fork();
-      if (pid == 0) {
+      //pid = fork();
+      //if (pid == 0) {
+      if (!fork()) {
 
         printf( "Server new client connection [%s/%d]", inet_ntoa(caddr.sin_addr), caddr.sin_port );
         //read( client, value, BUFFER_SIZE);
@@ -128,17 +130,7 @@ int server_operation( void ) {
         }
         //value = ntohl(value);
         printf( "Received a value of [%8s]\n", buffer );
-        //value++;
-        //value = htonl(value);
-        //write( client, response, BUFFER_SIZE);
 
-        /*if (write( client, buffer, BUFFER_SIZE) != BUFFER_SIZE) {
-        //if (errno) {
-            printf( "Error writing network data [%s]\n", strerror(errno) );
-            close(server);
-            return( -1 );
-        }
-        printf( "Sent a value of [%8s]\n", buffer );*/
         buffer[BUFFER_SIZE-1] = '\0';
         if (file_to_soc(client, buffer)) {
             printf( "Error writing file to network [%s]\n", strerror(errno) );
@@ -162,6 +154,8 @@ int server_operation( void ) {
 
 int main (int argc, char **argv)
 {
+  TERMINAL_STR = "cmsc25X";
+  TERMINAL_STR[6] = '7';
   return server_operation();
 }
 
