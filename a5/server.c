@@ -13,6 +13,7 @@
 
 
 char TERMINAL_STR[8];
+int term_i = 0;
 
 int shutdown_requested = 0;
 int in_progress = 0;
@@ -35,22 +36,42 @@ int term(char *str) {
   return !strncmp(str, TERMINAL_STR, sizeof(TERMINAL_STR));
 }
 
+int write_term(){
+  char c; 
+  if (term_i < 8) {
+     c = TERMINAL_STR[term_i];
+     term_i++;
+     return c;
+  } else{
+    return 0;
+  }
+}
+
 int file_to_soc(int client, char *filename) {
-    int i, reached_eof = 0;
+    int i, reached_eof = 0, done = 0;
     char c;
     char buffer[BUFFER_SIZE];
     FILE *input = fopen( filename, "r");
     
 
     
-    while (!reached_eof) {
+    while (!done) {
       
       for (i = 0; i<BUFFER_SIZE; i++){
-        c = fgetc(input);
-        buffer[i] = c;
-        if (c == EOF) {
-          reached_eof = 1;
-          break;
+        if (reached_eof) {
+          c = write_term();
+          if (c == 0) {
+            done = 1;
+            break;
+          } else {
+            buffer[i] = c;
+          }
+        } else {
+          c = fgetc(input);
+          buffer[i] = c;
+          if (c == EOF) {
+            reached_eof = 1;
+          }
         }
       }
       if (write( client, buffer, BUFFER_SIZE) != BUFFER_SIZE) {
@@ -144,7 +165,7 @@ int server_operation( void ) {
 
 int main (int argc, char **argv)
 {
-  TERMINAL_STR = "cmsc25X";
+  strcpy(TERMINAL_STR,"cmsc25X");
   TERMINAL_STR[6] = '7';
   return server_operation();
 }

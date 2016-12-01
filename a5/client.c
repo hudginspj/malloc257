@@ -12,39 +12,65 @@
 
 char TERMINAL_STR[8];
 int term_i = 0;
+char queue[9];
+int queue_i = 0;
+int queue_size = 0;
 
-int term(char *str) {
-  return !strncmp(str, TERMINAL_STR, sizeof(TERMINAL_STR));
+void putc_queue(char c, FILE *fp) {
+   queue[queue_i] = c;
+   if (queue_i == 8) {
+      queue_i = 0;
+   } else {
+     queue_i++;
+   }
+
+   if (queue_size < 9) {
+      queue_size++;
+   } else {
+     fputc(queue[queue_i], fp);
+   }
 }
 
-//int term(char c) {
-//  if (c === TERMINAL_STR[term_i])
+
+//int term(char *str) {
+//  return !strncmp(str, TERMINAL_STR, sizeof(TERMINAL_STR));
 //}
+
+int term(char c) {
+  if (c == TERMINAL_STR[term_i]) {
+    if (term_i == 7) return 1;
+    term_i++;
+  } else {
+    term_i = 0;
+  }
+  return 0;
+}
 
 
 int soc_to_file(int server, char *filename) {
-    int i;
+    int i, done = 0;
     char c;
     char buffer[BUFFER_SIZE];
     FILE *output = fopen( filename, "w+");
     
     
-    while (1) {
+    while (!done) {
       if (read( server, buffer, BUFFER_SIZE) != BUFFER_SIZE ) {  
         return( -1 ); 
       }
-      if (term(buffer)) {
-        break;
-      } 
+      //if (term(buffer)) {
+      //  break;
+      //} 
       //printf( "Received a value of [%8s]\n", buffer ); 
       
       for (i = 0; i<BUFFER_SIZE; i++){
         c = buffer[i];
-        fputc(c, output);
-        if (c == EOF) {
-          //done = 1;
+        
+        if (term(c)) {
+          done = 1;
           break;
         }
+        putc_queue(c, output);
       }
     }
 
@@ -110,7 +136,7 @@ int client_operation( char *filename ) {
 
 int main (int argc, char **argv)
 {
-  TERMINAL_STR = "cmsc25X";
+  strcpy(TERMINAL_STR,"cmsc25X");
   TERMINAL_STR[6] = '7';
   if (argc <2) {
     puts("Please type a filename");

@@ -10,13 +10,47 @@
 #define BUFFER_SIZE 50
 #define PORT 2147
 
-char TERMINAL_STR[8];
+
 
 int shutdown_requested = 0;
 //int in_progress = 0;
 int children = 0;
 int server;
 int pid =1;
+
+char TERMINAL_STR[8];
+int term_i = 0;
+char queue[9];
+int queue_i = 0;
+int queue_size = 0;
+
+void putc_queue(char c, FILE *fp) {
+   queue[queue_i] = c;
+   if (queue_i == 8) {
+      queue_i = 0;
+   } else {
+     queue_i++;
+   }
+
+   if (queue_size < 9) {
+      queue_size++;
+   } else {
+     fputc(queue[queue_i], fp);
+   }
+}
+
+
+
+int term(char c) {
+  if (c == TERMINAL_STR[term_i]) {
+    if (term_i == 7) return 1;
+    term_i++;
+  } else {
+    term_i = 0;
+  }
+  return 0;
+}
+
 
 void signal_handler(int no) {
   //puts("signal caught");
@@ -34,10 +68,6 @@ void signal_handler(int no) {
   }
 }
 
-
-int term(char *str) {
-  return !strncmp(str, TERMINAL_STR, sizeof(TERMINAL_STR));
-}
 
 int file_to_soc(int client, char *filename) {
     int i, reached_eof = 0;
@@ -119,7 +149,6 @@ int server_operation( void ) {
       //pid = fork();
       //if (pid == 0) {
       if (!fork()) {
-
         printf( "Server new client connection [%s/%d]", inet_ntoa(caddr.sin_addr), caddr.sin_port );
         //read( client, value, BUFFER_SIZE);
         if (read( client, buffer, BUFFER_SIZE) != BUFFER_SIZE ) {
@@ -154,7 +183,7 @@ int server_operation( void ) {
 
 int main (int argc, char **argv)
 {
-  TERMINAL_STR = "cmsc25X";
+  strcpy(TERMINAL_STR,"cmsc25X");
   TERMINAL_STR[6] = '7';
   return server_operation();
 }
